@@ -425,16 +425,18 @@ def approve_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
 
     # Maker-Checker Governance: Prevent self-approval (AGENTS.md Rule 7)
-    last_human_stmt = (
+    # Check the last human actor who actually created or edited invoice data (the maker)
+    last_maker_stmt = (
         select(AuditLog)
         .where(
             AuditLog.entity_id == inv.id,
-            AuditLog.actor != "system"
+            AuditLog.actor != "system",
+            ~AuditLog.action.startswith("TRANSITION_")
         )
-        .order_by(desc(AuditLog.timestamp))
+        .order_by(desc(AuditLog.timestamp), desc(AuditLog.id))
         .limit(1)
     )
-    last_action = primary_db.scalars(last_human_stmt).first()
+    last_action = primary_db.scalars(last_maker_stmt).first()
     if last_action and last_action.actor:
         if body.actor.strip().lower() == last_action.actor.strip().lower() and body.actor.strip().lower() != "system":
             raise HTTPException(
@@ -442,26 +444,34 @@ def approve_invoice(
                 detail=f"Maker-checker violation: User '{body.actor}' created or modified this invoice and cannot self-approve it. A different checker must review and approve."
             )
 
-    try:
-        InvoiceStateMachine.transition(
-            invoice=inv,
-            target_status=InvoiceStatus.APPROVED,
-            actor=body.actor,
-            reason=body.notes or "Approved by accountant/checker",
-            expected_version=body.expected_version,
-            db=primary_db
-        )
-        primary_db.commit()
-    except ConcurrencyConflictError as err:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(err)
-        )
-    except InvalidStateTransitionError as err:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(err)
-        )
+    if inv.status != InvoiceStatus.APPROVED and inv.status != InvoiceStatus.DELIVERED:
+        try:
+            InvoiceStateMachine.transition(
+                invoice=inv,
+                target_status=InvoiceStatus.APPROVED,
+                actor=body.actor,
+                reason=body.notes or "Approved by accountant/checker",
+                expected_version=body.expected_version,
+                db=primary_db
+            )
+            primary_db.commit()
+        except ConcurrencyConflictError as err:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(err)
+            )
+        except InvalidStateTransitionError as err:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(err)
+            )
+    else:
+        # If already approved or delivered, verify OCC expected_version
+        if body.expected_version != inv.version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"OCC conflict: expected version {body.expected_version}, but current version is {inv.version}."
+            )
 
     # Execute transactional delivery to Target DB
     ok, msg, comp_inv = DeliveryWorker.deliver_invoice(
@@ -693,7 +703,12 @@ async def reject_invoice(
             payload = await request.json()
             actor = payload.get("actor")
             reason = payload.get("reason")
-            expected_version = payload.get("expected_version")
+            raw_ev = payload.get("expected_version")
+            if raw_ev is not None:
+                try:
+                    expected_version = int(raw_ev)
+                except (ValueError, TypeError):
+                    expected_version = raw_ev
         except Exception:
             pass
     else:
@@ -702,11 +717,11 @@ async def reject_invoice(
             actor = form.get("actor")
             reason = form.get("reason")
             raw_v = form.get("expected_version")
-            if raw_v is not None:
+            if raw_v is not None and str(raw_v).strip():
                 try:
                     expected_version = int(raw_v)
-                except ValueError:
-                    pass
+                except (ValueError, TypeError):
+                    expected_version = raw_v
         except Exception:
             pass
 

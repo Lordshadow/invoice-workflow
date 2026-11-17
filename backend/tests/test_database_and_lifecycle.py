@@ -504,6 +504,18 @@ class TestDatabaseAndLifecycle:
         )
         assert checker_res.status_code == 200
         assert checker_res.json()["status"] == "DELIVERED"
+        v3 = checker_res.json()["version"]
+
+        # 5. Checker Bob retries or re-approves -> Succeeded without being falsely blocked as his own maker
+        retry_res = client.post(
+            f"/api/v1/invoices/{inv_id}/approve",
+            json={
+                "actor": "checker_bob",
+                "expected_version": v3,
+                "notes": "Idempotent retry check"
+            }
+        )
+        assert retry_res.status_code == 200
 
     def test_correction_double_version_increment_fixed(self, client, db_session):
         """Verifies correcting an invoice from PENDING_CORRECTION increments version by exactly 1 (not 2)."""
@@ -640,5 +652,57 @@ class TestDatabaseAndLifecycle:
 
         assert DeduplicationService.normalize_invoice_number("000456") == "456"
         assert DeduplicationService.normalize_invoice_number("INV-0") == "INV0"
+
+    def test_generic_supplier_name_not_treated_as_business_duplicate(self, db_session):
+        """Verifies placeholder names like 'Unknown Supplier' or 'N/A' do not cause false-positive Layer 2 duplicates."""
+        doc = Document(source="upload", file_name="unknown1.pdf", file_path="u1.pdf", file_hash="uhash1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv1 = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_APPROVAL,
+            supplier_name="Unknown Supplier",
+            supplier_gstin=None,
+            invoice_number="INV-001",
+            version=1
+        )
+        db_session.add(inv1)
+        db_session.commit()
+
+        # Check a different invoice with same generic supplier name and invoice number
+        dup_type, matched = DeduplicationService.check_business_duplicate(
+            supplier_gstin=None,
+            invoice_number="INV-001",
+            current_invoice_id="inv-2",
+            db=db_session,
+            supplier_name="Unknown Supplier"
+        )
+        assert dup_type == DuplicateType.NONE
+        assert matched is None
+
+    def test_unknown_invoice_number_does_not_collide_in_target_db(self, db_session, target_db_session):
+        """Verifies distinct invoices with missing invoice numbers do not falsely collide on 'UNKNOWN' business keys."""
+        doc1 = Document(source="upload", file_name="unkn_inv1.pdf", file_path="ui1.pdf", file_hash="uihash1", file_size_bytes=100, mime_type="application/pdf")
+        doc2 = Document(source="upload", file_name="unkn_inv2.pdf", file_path="ui2.pdf", file_hash="uihash2", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add_all([doc1, doc2])
+        db_session.flush()
+
+        inv1 = Invoice(document_id=doc1.id, status=InvoiceStatus.APPROVED, supplier_name="Shop A", supplier_gstin=None, invoice_number=None, grand_total=100.0, version=1)
+        inv2 = Invoice(document_id=doc2.id, status=InvoiceStatus.APPROVED, supplier_name="Shop B", supplier_gstin=None, invoice_number=None, grand_total=200.0, version=1)
+        db_session.add_all([inv1, inv2])
+        db_session.commit()
+
+        ok1, msg1, c1 = DeliveryWorker.deliver_invoice(inv1.id, db_session, target_db_session)
+        assert ok1 is True
+        assert c1 is not None
+
+        # Delivering inv2 must succeed as a new distinct target record, not an idempotent match of inv1
+        ok2, msg2, c2 = DeliveryWorker.deliver_invoice(inv2.id, db_session, target_db_session)
+        assert ok2 is True
+        assert c2 is not None
+        assert c2.id != c1.id
+        assert c2.grand_total == 200.0
+
 
 

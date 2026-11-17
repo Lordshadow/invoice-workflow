@@ -56,8 +56,9 @@ class DeliveryWorker:
         existing_target = target_db.scalars(ref_stmt).first()
 
         # If not found by reference ID, check by business key (supplier_gstin + invoice_number)
-        if not existing_target:
-            num_match = invoice.invoice_number or "UNKNOWN"
+        # Only check business key if invoice_number is a valid, distinct identifier (not empty or UNKNOWN)
+        if not existing_target and invoice.invoice_number and invoice.invoice_number.strip().upper() != "UNKNOWN":
+            num_match = invoice.invoice_number.strip()
             biz_stmt = select(CompanyInvoice).where(CompanyInvoice.invoice_number == num_match)
             if invoice.supplier_gstin and invoice.supplier_gstin.strip():
                 biz_stmt = biz_stmt.where(CompanyInvoice.supplier_gstin == invoice.supplier_gstin.strip().upper())
@@ -129,13 +130,14 @@ class DeliveryWorker:
             logger.info(f"Successfully posted invoice {invoice.invoice_number} to Target DB (ID: {comp_inv.id})")
 
             # 3. Transition Primary DB State and resolve Outbox Event
-            InvoiceStateMachine.transition(
-                invoice=invoice,
-                target_status=InvoiceStatus.DELIVERED,
-                actor=actor,
-                reason=f"Delivered to Target DB record {comp_inv.id}",
-                db=primary_db
-            )
+            if invoice.status != InvoiceStatus.DELIVERED:
+                InvoiceStateMachine.transition(
+                    invoice=invoice,
+                    target_status=InvoiceStatus.DELIVERED,
+                    actor=actor,
+                    reason=f"Delivered to Target DB record {comp_inv.id}",
+                    db=primary_db
+                )
 
             # Mark outbox event as published
             outbox_stmt = (

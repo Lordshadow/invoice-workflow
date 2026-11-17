@@ -459,3 +459,34 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Full automated pytest suite executed: **55 passed, 0 failed** across all test suites (100% pass rate).
   - Status: PASS.
+
+
+### [2026-11-17 17:45:00 +05:30] Secondary Bug Audit & Defensive Remediation on Phase 2 Enhancements
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Secondary Bug Audit & Edge Case Hardening
+- **Files Modified / Created**:
+  - `backend/app/services/deduplication_service.py` (Modified):
+    - Refactored `normalize_invoice_number` to use `tok.lstrip("0") or "0"` to eliminate any integer conversion limits or overhead on arbitrary length strings.
+    - Added generic supplier name filtering (`generic_names = ("UNKNOWN", "UNKNOWNSUPPLIER", "NA", "NOTAVAILABLE", "NONE", "UNKNOWNVENDOR", "CUSTOMER", "BUYER")`) to prevent false-positive Layer 2 duplicates between distinct invoices with unextracted vendor names.
+  - `backend/app/services/delivery_worker.py` (Modified):
+    - Prevented collision on missing invoice numbers by ensuring business key queries only trigger when `invoice.invoice_number` is a valid, distinct identifier (not empty or `"UNKNOWN"`).
+    - Prevented illegal `DELIVERED -> DELIVERED` transitions when writing to target DB by checking `if invoice.status != InvoiceStatus.DELIVERED`.
+  - `backend/app/services/invoice_state_machine.py` (Modified):
+    - Added defensive integer type conversion for `expected_version` before OCC checks, ensuring string values like `"1"` compare accurately against `invoice.version = 1`.
+  - `backend/app/routers/invoices.py` (Modified):
+    - Fixed Maker-Checker check in `approve_invoice` to only inspect maker actions (`~AuditLog.action.startswith("TRANSITION_")`), preventing checkers from being falsely blocked by their own previous approval attempts during retries.
+    - Handled approval idempotency in `approve_invoice`: if an invoice is already `APPROVED` or `DELIVERED`, verifies OCC `expected_version` and proceeds to deliver without throwing illegal transition errors.
+    - Defensively parsed `expected_version` in `reject_invoice` across both JSON and Form payloads.
+  - `backend/tests/test_database_and_lifecycle.py` (Modified):
+    - Added verification in `test_maker_checker_self_approval_prevented` confirming independent checkers can retry/re-approve without self-approval lock.
+    - Added `test_generic_supplier_name_not_treated_as_business_duplicate` and `test_unknown_invoice_number_does_not_collide_in_target_db`.
+    - Suite expanded from 19 to 21 tests, all 21 verified passing.
+  - `alogs.md` (Modified): Appended entry.
+- **What Changed**:
+  - Identified and eliminated 4 subtle edge-case bugs that could arise from initial bug fixes (checker self-approval false-positive on retry, placeholder supplier name duplicate false-positives, missing invoice number collision on target ERP writes, and string vs integer OCC comparisons).
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check for the bug which might created from bug fix and fix those bugs and remaind to not to create any bugs and also veryfi untile the bugs are cleared".
+- **QA & Verification Status**:
+  - Full automated pytest suite executed: **21 passed in lifecycle suite (100%), 57 passed project-wide**.
+  - Status: PASS.

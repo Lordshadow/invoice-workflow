@@ -42,7 +42,7 @@ class DeduplicationService:
         normalized = []
         for tok in tokens:
             if tok.isdigit():
-                normalized.append(str(int(tok)))
+                normalized.append(tok.lstrip("0") or "0")
             else:
                 normalized.append(tok.upper())
         return "".join(normalized)
@@ -107,7 +107,8 @@ class DeduplicationService:
         # 2. Fallback Match for Foreign / Non-GST Suppliers without GSTIN
         elif supplier_name and supplier_name.strip():
             norm_name = re.sub(r"[^A-Za-z0-9]", "", supplier_name).upper()
-            if len(norm_name) >= 3:
+            generic_names = ("UNKNOWN", "UNKNOWNSUPPLIER", "NA", "NOTAVAILABLE", "NONE", "UNKNOWNVENDOR", "CUSTOMER", "BUYER")
+            if len(norm_name) >= 3 and norm_name not in generic_names:
                 stmt = (
                     select(Invoice)
                     .where(
@@ -121,6 +122,8 @@ class DeduplicationService:
                 candidates = db.scalars(stmt).all()
                 for cand in candidates:
                     cand_name_norm = re.sub(r"[^A-Za-z0-9]", "", cand.supplier_name or "").upper()
+                    if cand_name_norm in generic_names:
+                        continue
                     cand_inv_norm = cls.normalize_invoice_number(cand.invoice_number)
                     if cand_name_norm == norm_name and cand_inv_norm == norm_current:
                         logger.warning(

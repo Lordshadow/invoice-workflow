@@ -105,10 +105,15 @@ class InvoiceStateMachine:
         current_status = invoice.status
 
         # 1. Check Optimistic Concurrency Control
-        if expected_version is not None and invoice.version != expected_version:
-            raise ConcurrencyConflictError(
-                f"Version conflict for invoice {invoice.id}: expected {expected_version}, got {invoice.version}"
-            )
+        if expected_version is not None:
+            try:
+                exp_v_int = int(expected_version)
+            except (ValueError, TypeError):
+                exp_v_int = expected_version
+            if invoice.version != exp_v_int:
+                raise ConcurrencyConflictError(
+                    f"Version conflict for invoice {invoice.id}: expected {expected_version}, got {invoice.version}"
+                )
 
         # 2. Check Allowed Transitions
         if not cls.can_transition(current_status, target_status):
