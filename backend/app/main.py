@@ -1,0 +1,76 @@
+"""
+Main entry point for the Invoice Processing FastAPI Application.
+"""
+import logging
+import sys
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from backend.app.config import settings
+from backend.app.routers.document_processing import router as document_router
+
+# Configure root logger
+log_level = logging.DEBUG if settings.DEBUG else logging.INFO
+logging.basicConfig(
+    level=log_level,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+logger = logging.getLogger("invoice_processor.main")
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    version="1.0.0",
+    description="Enterprise AI Invoice Processing & Document Intake Engine",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
+
+# Enable CORS for frontend dashboard
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Global unified error handler (Senior Backend Developer Standard)
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error occurred during processing.",
+                "details": str(exc) if settings.DEBUG else None
+            }
+        }
+    )
+
+# Register API Routers
+app.include_router(document_router, prefix=settings.API_V1_PREFIX)
+
+
+@app.get("/", tags=["System"])
+async def root():
+    """Root info endpoint."""
+    return {
+        "app": settings.APP_NAME,
+        "status": "online",
+        "docs": "/docs",
+        "endpoints": {
+            "health": f"{settings.API_V1_PREFIX}/documents/health",
+            "preprocess": f"{settings.API_V1_PREFIX}/documents/preprocess"
+        }
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8000, reload=True)
