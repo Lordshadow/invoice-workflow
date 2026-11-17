@@ -10,6 +10,52 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
 from backend.app.main import app
+from backend.app.db.base import Base
+from backend.app.db.session import SessionLocal, TargetSessionLocal, init_db
+from backend.app.models.target_company import TargetBase
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_databases():
+    """Initializes test database schemas before test run."""
+    init_db()
+
+
+@pytest.fixture(autouse=True)
+def clean_test_databases():
+    """Cleans all test tables before each test for total test isolation."""
+    db = SessionLocal()
+    target_db = TargetSessionLocal()
+    try:
+        for table in reversed(Base.metadata.sorted_tables):
+            db.execute(table.delete())
+        db.commit()
+        for table in reversed(TargetBase.metadata.sorted_tables):
+            target_db.execute(table.delete())
+        target_db.commit()
+    finally:
+        db.close()
+        target_db.close()
+
+
+@pytest.fixture
+def db_session():
+    """Provides an isolated database session for primary pipeline testing."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def target_db_session():
+    """Provides an isolated database session for target company testing."""
+    session = TargetSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture

@@ -356,3 +356,44 @@ This file records all architectural decisions, file creations, modifications, QA
   - Full automated pytest suite executed: **36 passed, 0 failed** in 61.91s (100% pass rate).
   - All 4 new defensive tests passed.
   - Status: PASS.
+
+
+### [2026-11-17 16:35:00 +05:30] Phase 2: Relational Database Layer, State Machine, Two-Tier Deduplication, Optimistic Concurrency Control (OCC), and Transactional Target DB Delivery Worker
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Phase 2 Master Plan Implementation (Database, State Machine, Deduplication, OCC, Delivery Worker, Endpoints)
+- **Files Modified / Created**:
+  - `backend/app/config.py` (Modified): Added `DATA_DIR`, `DATABASE_URL` (`sqlite:///./data/invoice_pipeline.db`), and `TARGET_DATABASE_URL` (`sqlite:///./data/target_company.db`).
+  - `backend/app/db/base.py` (Created): Created SQLAlchemy 2.0 `DeclarativeBase` with UTC timestamps.
+  - `backend/app/db/session.py` (Created): Configured SQLite connection pool with `PRAGMA foreign_keys=ON;`, `SessionLocal` & `TargetSessionLocal` sessionmakers, `init_db()`, `get_db()`, and `get_target_db()` FastAPI dependencies.
+  - `backend/app/models/document.py` (Created): Created `Document` relational model with intake source, SHA-256 hash index, and file storage metadata.
+  - `backend/app/models/invoice.py` (Created): Created `Invoice`, `InvoiceStatus` enum, `InvoiceLineItem`, `ExtractionLog`, `OutboxEvent`, and `AuditLog` models with OCC `version` counter and foreign key relationships.
+  - `backend/app/models/target_company.py` (Created): Created external ERP tables `CompanyInvoice` and `CompanyInvoiceLine` with `UNIQUE (supplier_gstin, invoice_number)` enforcing absolute delivery idempotency.
+  - `backend/app/services/invoice_state_machine.py` (Created): Implemented state machine enforcing legal status transitions, optimistic concurrency version checks, and atomic generation of `AuditLog` and `OutboxEvent` in the same ACID transaction.
+  - `backend/app/services/deduplication_service.py` (Created): Implemented Two-Tier Deduplication:
+    - Layer 1: SHA-256 exact file hash match.
+    - Layer 2: Business identity `(supplier_gstin, invoice_number)` deduplication.
+  - `backend/app/services/delivery_worker.py` (Created): Transactional delivery worker posting approved invoices to Target Company DB and marking `OutboxEvent` as `PUBLISHED`.
+  - `backend/app/schemas/invoice_api.py` (Created): Strict Pydantic v2 schemas for invoice list, detail, maker-checker approval, rejection, and target delivery payloads.
+  - `backend/app/routers/invoices.py` (Created): REST API endpoints:
+    - `POST /api/v1/invoices/process`: End-to-end multipart intake $\rightarrow$ preprocessing $\rightarrow$ OCR/Groq extraction $\rightarrow$ arithmetic validation $\rightarrow$ deduplication $\rightarrow$ database transaction.
+    - `GET /api/v1/invoices`: Paginated invoice list with status/search filtering.
+    - `GET /api/v1/invoices/{id}`: Full detail with line items, extraction logs, and audit trail.
+    - `POST /api/v1/invoices/{id}/approve`: OCC maker-checker approval $\rightarrow$ triggers Target DB delivery.
+    - `POST /api/v1/invoices/{id}/reject`: Transitions invoice to terminal `REJECTED` status.
+    - `GET /api/v1/target-company/invoices`: External ERP view of delivered vouchers.
+  - `backend/app/main.py` (Modified): Mounted invoices and target company routers; configured automatic `init_db()` startup lifecycle hook.
+  - `backend/requirements.txt` (Modified): Added `sqlalchemy>=2.0.0` and `alembic>=1.13.0`.
+  - `.gitignore` (Modified): Added `data/`, `uploads/`, `*.db`, `*.sqlite3` to ignore runtime databases and uploaded files.
+  - `backend/tests/conftest.py` (Modified): Added autouse fixture `clean_test_databases` for clean test isolation.
+  - `backend/tests/test_database_and_lifecycle.py` (Created): 11 tests verifying end-to-end database lifecycle, state machine, OCC concurrency conflicts (HTTP 409), duplicate rejections, and target delivery.
+  - `alogs.md` (Modified): Recorded activity log.
+- **What Changed**:
+  - Implemented complete persistence layer connecting AI extraction pipeline to relational database storage, state machine, OCC, deduplication, and external target ERP delivery.
+  - Enforced strict foreign keys, transactional outbox pattern, and maker-checker approval with version locking.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user request: "ok ,lets contine to phase 2".
+- **QA & Verification Status**:
+  - Full automated pytest suite executed: **47 passed, 0 failed** in 108.44s across all 6 test suites (100% pass rate).
+  - All 11 database and lifecycle tests passed.
+  - Status: PASS.

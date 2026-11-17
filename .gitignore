@@ -39,3 +39,10 @@ $RECYCLE.BIN/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local databases and runtime file uploads
+data/
+uploads/
+*.db
+*.sqlite3
+

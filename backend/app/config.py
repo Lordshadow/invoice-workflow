@@ -46,6 +46,15 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("GEMINI_MODEL_NAME", "gemini-3.7-flash").strip()
     )
 
+    # Database Settings
+    DATA_DIR: Path = Path(os.getenv("DATA_DIR", "data"))
+    DATABASE_URL: str = Field(
+        default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///./data/invoice_pipeline.db")
+    )
+    TARGET_DATABASE_URL: str = Field(
+        default_factory=lambda: os.getenv("TARGET_DATABASE_URL", "sqlite:///./data/target_company.db")
+    )
+
     # 4. Groq API Configuration (Ultra-fast, Low-Token LPU Inference)
     GROQ_API_KEY: str = Field(default_factory=lambda: os.getenv("GROQ_API_KEY", "").strip())
     GROQ_MODEL_NAME: str = Field(
@@ -61,3 +70,4 @@ settings = Settings()
 # Ensure required directories exist
 settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 settings.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+settings.DATA_DIR.mkdir(parents=True, exist_ok=True)

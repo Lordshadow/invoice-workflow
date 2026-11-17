@@ -9,8 +9,10 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.config import settings
+from backend.app.db.session import init_db
 from backend.app.routers.document_processing import router as document_router
 from backend.app.routers.extraction import router as extraction_router
+from backend.app.routers.invoices import router as invoices_router, target_router
 
 # Configure root logger
 log_level = logging.DEBUG if settings.DEBUG else logging.INFO
@@ -58,9 +60,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
+# Auto-initialize database tables on module load
+init_db()
+
 # Register API Routers
 app.include_router(document_router, prefix=settings.API_V1_PREFIX)
 app.include_router(extraction_router, prefix=settings.API_V1_PREFIX)
+app.include_router(invoices_router, prefix=settings.API_V1_PREFIX)
+app.include_router(target_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", tags=["System"])
@@ -72,7 +79,10 @@ async def root():
         "docs": "/docs",
         "endpoints": {
             "health": f"{settings.API_V1_PREFIX}/documents/health",
-            "preprocess": f"{settings.API_V1_PREFIX}/documents/preprocess"
+            "preprocess": f"{settings.API_V1_PREFIX}/documents/preprocess",
+            "extract": f"{settings.API_V1_PREFIX}/extract",
+            "invoices": f"{settings.API_V1_PREFIX}/invoices",
+            "target_company": f"{settings.API_V1_PREFIX}/target-company/invoices",
         }
     }
 
