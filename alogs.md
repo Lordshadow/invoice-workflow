@@ -424,3 +424,38 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Full automated pytest suite executed: **50 passed, 0 failed** in 144.93s across all 6 test suites (100% pass rate).
   - Status: PASS.
+
+
+### [2026-11-17 17:30:00 +05:30] Phase 2 Comprehensive Bug Fixing, Concurrency Hardening & Maker-Checker Governance
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Phase 2 Relational Lifecycle & Bug Remediation
+- **Files Modified / Created**:
+  - `backend/app/services/invoice_state_machine.py` (Modified): Added `InvoiceStatus.PENDING_CORRECTION` to `ALLOWED_TRANSITIONS[InvoiceStatus.DUPLICATE_INVESTIGATION]` so suspected duplicates cleared by review with validation errors can transition to correction.
+  - `backend/app/services/deduplication_service.py` (Modified):
+    - Fixed `normalize_invoice_number` by tokenizing alphanumeric components (`re.findall(r"[A-Za-z]+|[0-9]+", inv_num)`) and stripping leading zeros from numeric segments, allowing `"INV-00123"` and `"INV 123"` to normalize identically to `"INV123"`.
+    - Extended `check_business_duplicate` with fallback matching by `(normalized_supplier_name, normalized_invoice_number)` for international/non-GST suppliers without GSTIN.
+  - `backend/app/services/delivery_worker.py` (Modified):
+    - Fixed idempotency check in `deliver_invoice` to evaluate internal reference ID (`ext_reference_id`) and safely match `NULL`/empty `supplier_gstin` using `(CompanyInvoice.supplier_gstin.is_(None)) | (CompanyInvoice.supplier_gstin == "")`.
+    - Allowed delivery when `invoice.status in (InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED)`, returning idempotent success without error on worker retry.
+    - Resolved pending `INVOICE_APPROVED` outbox events by marking them `PUBLISHED` on idempotent reconciliation.
+  - `backend/app/schemas/invoice_api.py` (Modified): Added `expected_version` to `InvoiceRejectionRequest` for optimistic concurrency race condition protection.
+  - `backend/app/routers/invoices.py` (Modified):
+    - Fixed line items update in `PUT /api/v1/invoices/{id}` by clearing and appending directly to `inv.line_items`, ensuring `InvoiceValidator` evaluates the new line items rather than cached stale records.
+    - Fixed double version increment in `PUT /api/v1/invoices/{id}` by only incrementing version if `InvoiceStateMachine.transition` didn't already increment it.
+    - Enforced Maker-Checker governance in `POST /api/v1/invoices/{id}/approve` (AGENTS.md Rule 7), blocking self-approval with HTTP 403 if the approver is the same actor who last modified the invoice.
+    - Added OCC version verification to `POST /api/v1/invoices/{id}/reject`, returning HTTP 409 Conflict on stale version attempts.
+    - Eliminated N+1 query bottlenecks in `GET /api/v1/invoices` using `.options(joinedload(Invoice.document))` and in `GET /api/v1/target-company/invoices` using `.options(selectinload(CompanyInvoice.lines))`.
+    - Sanitized ingested filenames using `Path(file.filename).name` to eliminate directory traversal risks.
+    - Wrapped duplicate return `validation_errors` parsing in defensive `try...except` to prevent unhandled `JSONDecodeError`.
+  - `backend/tests/test_database_and_lifecycle.py` (Modified):
+    - Added 5 targeted tests: `test_maker_checker_self_approval_prevented`, `test_correction_double_version_increment_fixed`, `test_rejection_with_occ_expected_version`, `test_target_idempotency_null_supplier_gstin`, and `test_invoice_number_normalization_strips_leading_zeros`.
+    - Suite expanded to 19 tests, all passing.
+  - `alogs.md` (Modified): Appended changelog entry.
+- **What Changed**:
+  - Remediated all 13 bugs identified in the Phase 2 backend lifecycle code, covering stale line item validation, double version jumps, target ERP idempotency with NULL GSTINs, maker-checker governance, outbox event reconciliation, leading zero normalization, and N+1 query bottlenecks.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "fix the bugs from top to bottom and make sure not to introduce any mode bugs".
+- **QA & Verification Status**:
+  - Full automated pytest suite executed: **55 passed, 0 failed** across all test suites (100% pass rate).
+  - Status: PASS.

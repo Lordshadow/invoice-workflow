@@ -242,9 +242,9 @@ class TestDatabaseAndLifecycle:
             target_db=target_db_session,
             actor="test_worker"
         )
-        # Cannot deliver DELIVERED status again (status guard)
-        assert ok2 is False
-        assert "Cannot deliver invoice" in msg2
+        assert ok2 is True
+        assert "Already delivered" in msg2
+        assert comp_inv2.id == comp_inv.id
 
     def test_process_invoice_api_endpoint(self, client, sample_image_bytes):
         """Verifies POST /api/v1/invoices/process creates full ACID database records."""
@@ -456,4 +456,189 @@ class TestDatabaseAndLifecycle:
         )
         assert meta.invoice_number == "10042"
         assert isinstance(meta.invoice_number, str)
+
+    def test_maker_checker_self_approval_prevented(self, client, sample_image_bytes):
+        """Verifies AGENTS.md Rule 7: User who updated an invoice is strictly blocked from self-approving."""
+        # 1. Ingest invoice
+        res = client.post(
+            "/api/v1/invoices/process",
+            files={"file": ("maker_checker_test.png", sample_image_bytes, "image/png")},
+        )
+        assert res.status_code == 201
+        inv_id = res.json()["invoice_id"]
+        v1 = client.get(f"/api/v1/invoices/{inv_id}").json()["version"]
+
+        # 2. Accountant Jane updates the invoice
+        update_res = client.put(
+            f"/api/v1/invoices/{inv_id}",
+            json={
+                "actor": "accountant_jane",
+                "expected_version": v1,
+                "notes": "Verified details and signed off as maker",
+                "supplier_name": "ACME TEST SUPPLIER"
+            }
+        )
+        assert update_res.status_code == 200
+        v2 = update_res.json()["version"]
+
+        # 3. Accountant Jane attempts to self-approve -> Blocked with HTTP 403
+        self_approve_res = client.post(
+            f"/api/v1/invoices/{inv_id}/approve",
+            json={
+                "actor": "accountant_jane",
+                "expected_version": v2,
+                "notes": "Trying to self-approve"
+            }
+        )
+        assert self_approve_res.status_code == 403
+        assert "Maker-checker violation" in self_approve_res.json()["detail"]
+
+        # 4. Independent Checker Bob approves -> Succeeded
+        checker_res = client.post(
+            f"/api/v1/invoices/{inv_id}/approve",
+            json={
+                "actor": "checker_bob",
+                "expected_version": v2,
+                "notes": "Second-pair-of-eyes approval verified"
+            }
+        )
+        assert checker_res.status_code == 200
+        assert checker_res.json()["status"] == "DELIVERED"
+
+    def test_correction_double_version_increment_fixed(self, client, db_session):
+        """Verifies correcting an invoice from PENDING_CORRECTION increments version by exactly 1 (not 2)."""
+        doc = Document(
+            source="upload",
+            file_name="version_test.pdf",
+            file_path="uploads/version_test.pdf",
+            file_hash="vtest_hash_unique",
+            file_size_bytes=500,
+            mime_type="application/pdf"
+        )
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_CORRECTION,
+            invoice_number="INV-VTEST-01",
+            supplier_name="Old Name",
+            supplier_gstin="33AAACA1234A1Z5",
+            subtotal=500.0,
+            grand_total=500.0,
+            is_valid=False,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        # Update and correct
+        res = client.put(
+            f"/api/v1/invoices/{inv.id}",
+            json={
+                "actor": "accountant_sam",
+                "expected_version": 1,
+                "supplier_name": "Corrected Vendor Ltd",
+                "subtotal": 500.0,
+                "grand_total": 500.0,
+                "cgst": 0.0,
+                "sgst": 0.0,
+                "igst": 0.0,
+            }
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["version"] == 2  # Incremented from 1 to 2, NOT 3!
+        assert data["status"] == "PENDING_APPROVAL"
+
+    def test_rejection_with_occ_expected_version(self, client, sample_image_bytes):
+        """Verifies rejection enforces OCC versioning when expected_version is supplied."""
+        res = client.post(
+            "/api/v1/invoices/process",
+            files={"file": ("occ_rej_test.png", sample_image_bytes, "image/png")},
+        )
+        inv_id = res.json()["invoice_id"]
+
+        # Conflict with stale expected_version
+        rej_conflict = client.post(
+            f"/api/v1/invoices/{inv_id}/reject",
+            json={"actor": "auditor_x", "reason": "Bad scan", "expected_version": 999}
+        )
+        assert rej_conflict.status_code == 409
+
+        # Success with current version
+        rej_ok = client.post(
+            f"/api/v1/invoices/{inv_id}/reject",
+            json={"actor": "auditor_x", "reason": "Bad scan", "expected_version": 1}
+        )
+        assert rej_ok.status_code == 200
+        assert rej_ok.json()["status"] == "REJECTED"
+
+    def test_target_idempotency_null_supplier_gstin(self, db_session, target_db_session):
+        """Verifies DeliveryWorker idempotently delivers invoices with supplier_gstin=None without duplicate target rows."""
+        doc = Document(
+            source="upload",
+            file_name="foreign_invoice.pdf",
+            file_path="uploads/foreign_invoice.pdf",
+            file_hash="foreign_hash_999",
+            file_size_bytes=1200,
+            mime_type="application/pdf"
+        )
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.APPROVED,
+            supplier_name="Foreign Vendor LLC",
+            supplier_gstin=None,  # International supplier has no GSTIN
+            invoice_number="INV-USA-2026",
+            currency="USD",
+            subtotal=2500.0,
+            grand_total=2500.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        # First delivery
+        ok1, msg1, c_inv1 = DeliveryWorker.deliver_invoice(
+            invoice_id=inv.id,
+            primary_db=db_session,
+            target_db=target_db_session,
+            actor="worker_int"
+        )
+        assert ok1 is True
+        assert c_inv1 is not None
+
+        # Second delivery attempt
+        ok2, msg2, c_inv2 = DeliveryWorker.deliver_invoice(
+            invoice_id=inv.id,
+            primary_db=db_session,
+            target_db=target_db_session,
+            actor="worker_int"
+        )
+        assert ok2 is True
+        assert "Already delivered" in msg2
+        assert c_inv2.id == c_inv1.id
+
+        # Verify only 1 row in target DB
+        target_rows = target_db_session.scalars(
+            select(CompanyInvoice).where(CompanyInvoice.invoice_number == "INV-USA-2026")
+        ).all()
+        assert len(target_rows) == 1
+
+    def test_invoice_number_normalization_strips_leading_zeros(self):
+        """Verifies DeduplicationService.normalize_invoice_number reliably strips leading zeros across variations."""
+        s1 = DeduplicationService.normalize_invoice_number("INV-00123")
+        s2 = DeduplicationService.normalize_invoice_number("INV 123")
+        assert s1 == s2 == "INV123"
+
+        s3 = DeduplicationService.normalize_invoice_number("INV-2026-00900")
+        s4 = DeduplicationService.normalize_invoice_number("INV 2026 900")
+        assert s3 == s4 == "INV2026900"
+
+        assert DeduplicationService.normalize_invoice_number("000456") == "456"
+        assert DeduplicationService.normalize_invoice_number("INV-0") == "INV0"
+
 

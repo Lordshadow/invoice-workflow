@@ -108,6 +108,7 @@ class InvoiceApprovalRequest(BaseModel):
 class InvoiceRejectionRequest(BaseModel):
     actor: str = Field(description="Username or user ID of rejecting user")
     reason: str = Field(description="Mandatory rejection rationale")
+    expected_version: Optional[int] = Field(default=None, description="Optional OCC version to prevent race conditions")
 
 
 class InvoiceUpdateRequest(BaseModel):

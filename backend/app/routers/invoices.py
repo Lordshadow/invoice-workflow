@@ -4,10 +4,11 @@ Enforces ACID database transactions, maker-checker governance, OCC, and two-tier
 """
 import json
 import logging
+from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import desc, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from backend.app.config import settings
 from backend.app.db.session import get_db, get_target_db
@@ -99,6 +100,13 @@ async def process_invoice(
     is_dup_file, existing_doc = DeduplicationService.check_file_duplicate(file_hash, db)
     if is_dup_file and existing_doc:
         existing_inv = db.scalars(select(Invoice).where(Invoice.document_id == existing_doc.id).limit(1)).first()
+        val_errors = []
+        if existing_inv and existing_inv.validation_errors:
+            try:
+                val_errors = json.loads(existing_inv.validation_errors)
+            except Exception:
+                val_errors = [existing_inv.validation_errors]
+
         return ProcessInvoiceResponse(
             success=True,
             document_id=existing_doc.id,
@@ -109,30 +117,31 @@ async def process_invoice(
             duplicate_type=DuplicateType.EXACT_FILE_DUPLICATE.value,
             duplicate_of_id=existing_inv.id if existing_inv else existing_doc.id,
             validation_passed=existing_inv.is_valid if existing_inv else True,
-            validation_errors=json.loads(existing_inv.validation_errors) if (existing_inv and existing_inv.validation_errors) else [],
+            validation_errors=val_errors,
             grand_total=existing_inv.grand_total if existing_inv else 0.0,
             currency=existing_inv.currency if existing_inv else "INR",
             message=f"Duplicate file detected: Document already exists as ID {existing_doc.id}."
         )
 
     # 2. Persist File to Storage
-    safe_path = settings.UPLOAD_DIR / f"{file_hash[:16]}_{file.filename}"
+    clean_filename = Path(file.filename).name
+    safe_path = settings.UPLOAD_DIR / f"{file_hash[:16]}_{clean_filename}"
     safe_path.write_bytes(file_bytes)
 
     # 3. Create Document Record
     doc = Document(
         source=source,
-        file_name=file.filename,
+        file_name=clean_filename,
         file_path=str(safe_path),
         file_hash=file_hash,
         file_size_bytes=len(file_bytes),
-        mime_type=DocumentProcessor.detect_mime_type(file.filename, file_bytes)
+        mime_type=DocumentProcessor.detect_mime_type(clean_filename, file_bytes)
     )
     db.add(doc)
     db.flush()  # Populates doc.id
 
     # 4. Execute Decoupled Extraction Pipeline
-    ext_res = extraction_service.process_and_extract(file.filename, file_bytes)
+    ext_res = extraction_service.process_and_extract(clean_filename, file_bytes)
 
     inv_model = ext_res.invoice
     supplier_name = inv_model.supplier.name if (inv_model and inv_model.supplier) else "Unknown Supplier"
@@ -144,7 +153,8 @@ async def process_invoice(
         supplier_gstin=supplier_gstin,
         invoice_number=inv_number,
         current_invoice_id=None,
-        db=db
+        db=db,
+        supplier_name=supplier_name,
     )
 
     # Determine initial state
@@ -258,7 +268,7 @@ def list_invoices(
     db: Session = Depends(get_db)
 ):
     """Lists invoices with optional status and search filtering."""
-    stmt = select(Invoice).order_by(desc(Invoice.created_at))
+    stmt = select(Invoice).options(joinedload(Invoice.document)).order_by(desc(Invoice.created_at))
 
     if status_filter:
         stmt = stmt.where(Invoice.status == status_filter)
@@ -414,6 +424,24 @@ def approve_invoice(
     if not inv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
 
+    # Maker-Checker Governance: Prevent self-approval (AGENTS.md Rule 7)
+    last_human_stmt = (
+        select(AuditLog)
+        .where(
+            AuditLog.entity_id == inv.id,
+            AuditLog.actor != "system"
+        )
+        .order_by(desc(AuditLog.timestamp))
+        .limit(1)
+    )
+    last_action = primary_db.scalars(last_human_stmt).first()
+    if last_action and last_action.actor:
+        if body.actor.strip().lower() == last_action.actor.strip().lower() and body.actor.strip().lower() != "system":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Maker-checker violation: User '{body.actor}' created or modified this invoice and cannot self-approve it. A different checker must review and approve."
+            )
+
     try:
         InvoiceStateMachine.transition(
             invoice=inv,
@@ -515,8 +543,7 @@ def update_invoice(
 
     # Update line items if provided
     if body.line_items is not None:
-        for existing_item in list(inv.line_items):
-            db.delete(existing_item)
+        inv.line_items.clear()
         db.flush()
 
         for new_item in body.line_items:
@@ -533,7 +560,7 @@ def update_invoice(
                 igst_amount=new_item.igst_amount,
                 total_amount=new_item.total_amount
             )
-            db.add(db_item)
+            inv.line_items.append(db_item)
         db.flush()
         changes["line_items_count"] = {"new": len(body.line_items)}
 
@@ -591,6 +618,8 @@ def update_invoice(
 
     # State transition if validation status changed
     old_status = inv.status
+    state_transitioned = False
+
     if is_valid and inv.status in (InvoiceStatus.PENDING_CORRECTION, InvoiceStatus.DUPLICATE_INVESTIGATION):
         InvoiceStateMachine.transition(
             invoice=inv,
@@ -599,6 +628,7 @@ def update_invoice(
             reason=f"Accountant corrections passed validation ({body.notes or 'Fields updated'})",
             db=db
         )
+        state_transitioned = True
     elif not is_valid and inv.status == InvoiceStatus.PENDING_APPROVAL:
         InvoiceStateMachine.transition(
             invoice=inv,
@@ -607,9 +637,20 @@ def update_invoice(
             reason="Edits introduced validation mismatches",
             db=db
         )
+        state_transitioned = True
+    elif not is_valid and inv.status == InvoiceStatus.DUPLICATE_INVESTIGATION:
+        InvoiceStateMachine.transition(
+            invoice=inv,
+            target_status=InvoiceStatus.PENDING_CORRECTION,
+            actor=body.actor,
+            reason="Duplicate investigation concluded: validation errors require correction",
+            db=db
+        )
+        state_transitioned = True
 
-    # Increment version
-    inv.version += 1
+    # Only increment version if a state transition didn't already increment it
+    if not state_transitioned:
+        inv.version += 1
 
     # Log audit entry
     audit = AuditLog(
@@ -644,6 +685,7 @@ async def reject_invoice(
 
     actor = None
     reason = None
+    expected_version = None
 
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
@@ -651,6 +693,7 @@ async def reject_invoice(
             payload = await request.json()
             actor = payload.get("actor")
             reason = payload.get("reason")
+            expected_version = payload.get("expected_version")
         except Exception:
             pass
     else:
@@ -658,6 +701,12 @@ async def reject_invoice(
             form = await request.form()
             actor = form.get("actor")
             reason = form.get("reason")
+            raw_v = form.get("expected_version")
+            if raw_v is not None:
+                try:
+                    expected_version = int(raw_v)
+                except ValueError:
+                    pass
         except Exception:
             pass
 
@@ -673,9 +722,15 @@ async def reject_invoice(
             target_status=InvoiceStatus.REJECTED,
             actor=str(actor),
             reason=str(reason),
+            expected_version=expected_version,
             db=db
         )
         db.commit()
+    except ConcurrencyConflictError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(err)
+        )
     except InvalidStateTransitionError as err:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -696,7 +751,13 @@ def list_target_company_invoices(
     target_db: Session = Depends(get_target_db)
 ):
     """Inspects posted invoices in the destination Target Company DB."""
-    stmt = select(CompanyInvoice).order_by(desc(CompanyInvoice.posted_at)).offset(offset).limit(limit)
+    stmt = (
+        select(CompanyInvoice)
+        .options(selectinload(CompanyInvoice.lines))
+        .order_by(desc(CompanyInvoice.posted_at))
+        .offset(offset)
+        .limit(limit)
+    )
     records = target_db.scalars(stmt).all()
 
     results = []

@@ -36,9 +36,16 @@ class DeduplicationService:
         """
         if not inv_num:
             return ""
-        clean = re.sub(r"[^A-Za-z0-9]", "", inv_num).upper()
-        # Strip leading zeros from numeric segment
-        return clean
+        tokens = re.findall(r"[A-Za-z]+|[0-9]+", inv_num)
+        if not tokens:
+            return ""
+        normalized = []
+        for tok in tokens:
+            if tok.isdigit():
+                normalized.append(str(int(tok)))
+            else:
+                normalized.append(tok.upper())
+        return "".join(normalized)
 
     @classmethod
     def check_file_duplicate(cls, file_hash: str, db: Session) -> Tuple[bool, Optional[Document]]:
@@ -59,35 +66,67 @@ class DeduplicationService:
         invoice_number: Optional[str],
         current_invoice_id: Optional[str],
         db: Session,
+        supplier_name: Optional[str] = None,
     ) -> Tuple[DuplicateType, Optional[Invoice]]:
         """
-        Layer 2 Check: Evaluates (supplier_gstin, normalized_invoice_number) against non-rejected invoices.
+        Layer 2 Check: Evaluates business identity against non-rejected invoices.
+        Primary match: (supplier_gstin, normalized_invoice_number)
+        Fallback match (for foreign/non-GST vendors without GSTIN): (normalized_supplier_name, normalized_invoice_number)
         """
-        if not supplier_gstin or not invoice_number:
+        if not invoice_number:
             return DuplicateType.NONE, None
 
         norm_current = cls.normalize_invoice_number(invoice_number)
-        gstin_clean = supplier_gstin.strip().upper()
+        if not norm_current:
+            return DuplicateType.NONE, None
 
-        stmt = (
-            select(Invoice)
-            .where(
-                Invoice.supplier_gstin == gstin_clean,
-                Invoice.status != InvoiceStatus.REJECTED,
-            )
-        )
-        if current_invoice_id:
-            stmt = stmt.where(Invoice.id != current_invoice_id)
-
-        candidates = db.scalars(stmt).all()
-
-        for cand in candidates:
-            cand_norm = cls.normalize_invoice_number(cand.invoice_number)
-            if cand_norm and cand_norm == norm_current:
-                logger.warning(
-                    f"Layer 2 Exact Business Duplicate: Supplier '{gstin_clean}' + Invoice '{norm_current}' "
-                    f"matches existing Invoice {cand.id} (Status: {cand.status.value})"
+        # 1. Primary GSTIN + Invoice Number Match
+        if supplier_gstin and supplier_gstin.strip():
+            gstin_clean = supplier_gstin.strip().upper()
+            stmt = (
+                select(Invoice)
+                .where(
+                    Invoice.supplier_gstin == gstin_clean,
+                    Invoice.status != InvoiceStatus.REJECTED,
                 )
-                return DuplicateType.EXACT_BUSINESS_DUPLICATE, cand
+            )
+            if current_invoice_id:
+                stmt = stmt.where(Invoice.id != current_invoice_id)
+
+            candidates = db.scalars(stmt).all()
+
+            for cand in candidates:
+                cand_norm = cls.normalize_invoice_number(cand.invoice_number)
+                if cand_norm and cand_norm == norm_current:
+                    logger.warning(
+                        f"Layer 2 Exact Business Duplicate: Supplier '{gstin_clean}' + Invoice '{norm_current}' "
+                        f"matches existing Invoice {cand.id} (Status: {cand.status.value})"
+                    )
+                    return DuplicateType.EXACT_BUSINESS_DUPLICATE, cand
+
+        # 2. Fallback Match for Foreign / Non-GST Suppliers without GSTIN
+        elif supplier_name and supplier_name.strip():
+            norm_name = re.sub(r"[^A-Za-z0-9]", "", supplier_name).upper()
+            if len(norm_name) >= 3:
+                stmt = (
+                    select(Invoice)
+                    .where(
+                        (Invoice.supplier_gstin.is_(None)) | (Invoice.supplier_gstin == ""),
+                        Invoice.status != InvoiceStatus.REJECTED,
+                    )
+                )
+                if current_invoice_id:
+                    stmt = stmt.where(Invoice.id != current_invoice_id)
+
+                candidates = db.scalars(stmt).all()
+                for cand in candidates:
+                    cand_name_norm = re.sub(r"[^A-Za-z0-9]", "", cand.supplier_name or "").upper()
+                    cand_inv_norm = cls.normalize_invoice_number(cand.invoice_number)
+                    if cand_name_norm == norm_name and cand_inv_norm == norm_current:
+                        logger.warning(
+                            f"Layer 2 Non-GST Business Duplicate: Supplier '{supplier_name}' + Invoice '{norm_current}' "
+                            f"matches existing Invoice {cand.id} (Status: {cand.status.value})"
+                        )
+                        return DuplicateType.EXACT_BUSINESS_DUPLICATE, cand
 
         return DuplicateType.NONE, None

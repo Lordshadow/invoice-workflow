@@ -47,33 +47,54 @@ class DeliveryWorker:
         if not invoice:
             return False, f"Invoice {invoice_id} not found in primary database.", None
 
-        if invoice.status != InvoiceStatus.APPROVED:
-            return False, f"Cannot deliver invoice with status '{invoice.status.value}'. Must be 'APPROVED'.", None
+        if invoice.status not in (InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED):
+            return False, f"Cannot deliver invoice with status '{invoice.status.value}'. Must be 'APPROVED' or 'DELIVERED'.", None
 
         # 1. Target DB Idempotency Check
-        stmt = (
-            select(CompanyInvoice)
-            .where(
-                CompanyInvoice.supplier_gstin == (invoice.supplier_gstin or ""),
-                CompanyInvoice.invoice_number == (invoice.invoice_number or "")
-            )
-            .limit(1)
-        )
-        existing_target = target_db.scalars(stmt).first()
+        # First check by exact internal pipeline reference ID
+        ref_stmt = select(CompanyInvoice).where(CompanyInvoice.ext_reference_id == invoice.id).limit(1)
+        existing_target = target_db.scalars(ref_stmt).first()
+
+        # If not found by reference ID, check by business key (supplier_gstin + invoice_number)
+        if not existing_target:
+            num_match = invoice.invoice_number or "UNKNOWN"
+            biz_stmt = select(CompanyInvoice).where(CompanyInvoice.invoice_number == num_match)
+            if invoice.supplier_gstin and invoice.supplier_gstin.strip():
+                biz_stmt = biz_stmt.where(CompanyInvoice.supplier_gstin == invoice.supplier_gstin.strip().upper())
+            else:
+                biz_stmt = biz_stmt.where(
+                    (CompanyInvoice.supplier_gstin.is_(None)) | (CompanyInvoice.supplier_gstin == "")
+                )
+            existing_target = target_db.scalars(biz_stmt.limit(1)).first()
 
         if existing_target:
             logger.info(
                 f"Idempotent delivery check: Invoice {invoice.invoice_number} (Supplier: {invoice.supplier_gstin}) "
                 f"already posted in Target DB as ID {existing_target.id}."
             )
-            # Reconcile status in primary DB
-            InvoiceStateMachine.transition(
-                invoice=invoice,
-                target_status=InvoiceStatus.DELIVERED,
-                actor=actor,
-                reason="Reconciled with existing Target DB record (idempotent)",
-                db=primary_db
+            # Reconcile status in primary DB if not already DELIVERED
+            if invoice.status != InvoiceStatus.DELIVERED:
+                InvoiceStateMachine.transition(
+                    invoice=invoice,
+                    target_status=InvoiceStatus.DELIVERED,
+                    actor=actor,
+                    reason="Reconciled with existing Target DB record (idempotent)",
+                    db=primary_db
+                )
+
+            # Mark any pending approval outbox events as published
+            outbox_stmt = (
+                select(OutboxEvent)
+                .where(
+                    OutboxEvent.aggregate_id == invoice.id,
+                    OutboxEvent.event_type == "INVOICE_APPROVED",
+                    OutboxEvent.status == OutboxStatus.PENDING,
+                )
             )
+            pending_outbox = primary_db.scalars(outbox_stmt).first()
+            if pending_outbox:
+                pending_outbox.status = OutboxStatus.PUBLISHED
+
             primary_db.commit()
             return True, "Already delivered (idempotent match)", existing_target
 

@@ -68,6 +68,7 @@ class InvoiceStateMachine:
         ],
         InvoiceStatus.DUPLICATE_INVESTIGATION: [
             InvoiceStatus.PENDING_APPROVAL,
+            InvoiceStatus.PENDING_CORRECTION,
             InvoiceStatus.REJECTED,
         ],
         InvoiceStatus.APPROVED: [
