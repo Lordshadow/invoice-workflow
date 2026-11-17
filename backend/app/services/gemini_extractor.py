@@ -5,6 +5,8 @@ with native Pydantic structured output enforcement and offline mock fallback.
 """
 import json
 import logging
+import random
+import re
 import time
 from typing import Optional, Tuple
 from google import genai
@@ -148,8 +150,9 @@ class GeminiExtractor:
                     except Exception as e:
                         last_err = e
                         if "503" in str(e) or "429" in str(e):
-                            logger.warning(f"Model {model_to_try} returned transient overload ({e}). Retrying with fallback...")
-                            time.sleep(1.5)
+                            backoff = (2 ** attempt) * 1.5 + random.uniform(0.2, 0.8)
+                            logger.warning(f"Model {model_to_try} returned transient overload ({e}). Retrying in {backoff:.1f}s...")
+                            time.sleep(backoff)
                         else:
                             break
                 if response is not None:
@@ -164,6 +167,26 @@ class GeminiExtractor:
 
             parsed_dict = json.loads(raw_text)
             invoice_model = CanonicalInvoice.model_validate(parsed_dict)
+
+            # Ensure at least 1 line item exists for database relational integrity
+            if not invoice_model.line_items and (invoice_model.subtotal > 0 or invoice_model.grand_total > 0):
+                fallback_amt = round(invoice_model.subtotal if invoice_model.subtotal > 0 else invoice_model.grand_total, 2)
+                invoice_model.line_items.append(
+                    LineItem(
+                        description="General Invoice Amount (Un-itemized Receipt)",
+                        hsn_code=None,
+                        quantity=1.0,
+                        unit_price=fallback_amt,
+                        discount=0.0,
+                        tax_rate=0.0,
+                        cgst_amount=invoice_model.tax.cgst,
+                        sgst_amount=invoice_model.tax.sgst,
+                        igst_amount=invoice_model.tax.igst,
+                        total_amount=fallback_amt
+                    )
+                )
+                note = "Synthesized fallback line item for un-itemized invoice."
+                invoice_model.extraction_notes = f"{invoice_model.extraction_notes} | {note}" if invoice_model.extraction_notes else note
 
             # Run deterministic validation
             valid, errors = self.validate_arithmetic(invoice_model)
@@ -182,12 +205,13 @@ class GeminiExtractor:
         except Exception as exc:
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             logger.error(f"Gemini extraction failed for '{filename}': {exc}", exc_info=True)
-            
-            # If invalid/unauthenticated API key and in DEBUG mode, gracefully fall back to mock
-            if "UNAUTHENTICATED" in str(exc) and settings.DEBUG:
-                logger.warning("Live API call unauthenticated (401). Falling back to mock extraction in DEBUG mode.")
+
+            # If quota exhausted, unauthenticated, or rate-limited and in DEBUG mode, gracefully fall back to mock
+            exc_str = str(exc)
+            if ("UNAUTHENTICATED" in exc_str or "RESOURCE_EXHAUSTED" in exc_str or "402" in exc_str or "429" in exc_str) and settings.DEBUG:
+                logger.warning(f"Live API quota/auth issue ({exc_str}). Falling back to mock extraction in DEBUG mode.")
                 mock_resp = self._generate_mock_extraction(filename, start_time)
-                mock_resp.error_message = f"API Key Authentication Warning: {exc}"
+                mock_resp.error_message = f"API Quota/Auth Notice: {exc_str}"
                 return mock_resp
 
             return ExtractionResponse(
@@ -204,26 +228,40 @@ class GeminiExtractor:
     @staticmethod
     def validate_arithmetic(invoice: CanonicalInvoice) -> Tuple[bool, list[str]]:
         """
-        Deterministic arithmetic checks:
-        1. Subtotal + Taxes +/- RoundOff == Grand Total
-        2. Line Items Sum == Subtotal
+        Deterministic business & arithmetic checks:
+        1. Subtotal + Taxes +/- RoundOff == Grand Total (with strict 2-decimal rounding)
+        2. Line items total coherence
+        3. Indian 15-character GSTIN format validation
         """
         errors = []
-        calc_taxes = invoice.tax.cgst + invoice.tax.sgst + invoice.tax.igst + invoice.tax.cess
-        expected_total = invoice.subtotal + calc_taxes + invoice.round_off
 
-        # Check total equation with tolerance of +/- 1.00
-        if abs(expected_total - invoice.grand_total) > 1.00:
+        # 1. Floating-point safe arithmetic verification (rounded to 2 decimals)
+        subtotal = round(invoice.subtotal, 2)
+        calc_taxes = round(invoice.tax.cgst + invoice.tax.sgst + invoice.tax.igst + invoice.tax.cess, 2)
+        round_off = round(invoice.round_off, 2)
+        grand_total = round(invoice.grand_total, 2)
+        expected_total = round(subtotal + calc_taxes + round_off, 2)
+
+        # Check total equation with tolerance of +/- 1.00 for currency rounding
+        if abs(round(expected_total - grand_total, 2)) > 1.00:
             errors.append(
-                f"Grand total mismatch: Extracted {invoice.grand_total:.2f}, expected {expected_total:.2f} (Subtotal: {invoice.subtotal:.2f} + Taxes: {calc_taxes:.2f} + RoundOff: {invoice.round_off:.2f})"
+                f"Grand total mismatch: Extracted {grand_total:.2f}, expected {expected_total:.2f} (Subtotal: {subtotal:.2f} + Taxes: {calc_taxes:.2f} + RoundOff: {round_off:.2f})"
             )
 
-        # Check line items sum
+        # 2. Check line items sum coherence
         if invoice.line_items:
-            items_sum = sum(item.total_amount for item in invoice.line_items)
-            # Allow items_sum to match either subtotal or grand_total (depending on if line totals include tax)
-            if abs(items_sum - invoice.subtotal) > 2.0 and abs(items_sum - invoice.grand_total) > 2.0:
-                logger.debug(f"[DEV_DEBUG] Line items sum ({items_sum:.2f}) differs from subtotal ({invoice.subtotal:.2f})")
+            items_sum = round(sum(round(item.total_amount, 2) for item in invoice.line_items), 2)
+            if abs(round(items_sum - subtotal, 2)) > 2.0 and abs(round(items_sum - grand_total, 2)) > 2.0:
+                logger.debug(f"[DEV_DEBUG] Line items sum ({items_sum:.2f}) differs from subtotal ({subtotal:.2f})")
+
+        # 3. Indian GSTIN structure validation (15 characters: 2 state + 10 PAN + 1 entity + 'Z' + 1 checksum)
+        if invoice.supplier.gstin:
+            gstin_clean = invoice.supplier.gstin.strip().upper()
+            gstin_regex = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
+            if not re.match(gstin_regex, gstin_clean):
+                errors.append(
+                    f"Non-standard Supplier GSTIN format: '{invoice.supplier.gstin}' (Expected 15-character Indian GST format)"
+                )
 
         is_valid = len(errors) == 0
         return is_valid, errors

@@ -48,6 +48,7 @@ class DocumentProcessingResult(BaseModel):
     digital_text_extracted: Optional[str] = Field(default=None, description="Concatenated text extracted directly from digital PDF layer")
     b2b_qr_found: bool = False
     b2b_qr_data: Optional[QRCodeData] = None
+    preprocessed_bytes: Optional[bytes] = Field(default=None, exclude=True, description="OpenCV cleaned image bytes (for passing to AI)")
     processing_time_ms: float
     status: str = "SUCCESS"
     error_message: Optional[str] = None

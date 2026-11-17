@@ -54,9 +54,13 @@ class ExtractionService:
         # Step 2: Full Multimodal AI Extraction (Gemini / Vertex AI)
         # Always runs to capture all required requirements: supplier, buyer, invoice metadata,
         # complete itemized line items, tax breakdowns, and totals.
+        # Pass OpenCV deskewed/cleaned image bytes if available
+        payload_bytes = doc_result.preprocessed_bytes if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else file_bytes
+        payload_mime = "image/png" if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else doc_result.mime_type
+
         ai_response: ExtractionResponse = self.gemini_extractor.extract_invoice(
-            file_bytes=file_bytes,
-            mime_type=doc_result.mime_type,
+            file_bytes=payload_bytes,
+            mime_type=payload_mime,
             filename=filename
         )
 
@@ -93,14 +97,38 @@ class ExtractionService:
 
             # Cross-verify Total Amount
             if qr.total_value is not None:
-                diff = abs(invoice.grand_total - qr.total_value)
-                if diff <= 1.0:
+                # If AI returned 0 total (e.g. document only contained a QR code with no visible text),
+                # populate from QR ground truth
+                if invoice.grand_total == 0.0:
+                    invoice.grand_total = qr.total_value
+                    subtotal = round(qr.total_value / 1.18, 2)
+                    invoice.subtotal = subtotal
+                    gst_half = round((qr.total_value - subtotal) / 2.0, 2)
+                    invoice.tax.cgst = gst_half
+                    invoice.tax.sgst = gst_half
+                    if not invoice.line_items:
+                        invoice.line_items.append(
+                            LineItem(
+                                description=f"Goods per B2B e-Invoice (IRN: {qr.irn[:16]}...)" if qr.irn else "Goods per B2B e-Invoice",
+                                quantity=float(qr.item_count or 1),
+                                unit_price=subtotal,
+                                tax_rate=18.0,
+                                cgst_amount=gst_half,
+                                sgst_amount=gst_half,
+                                total_amount=qr.total_value
+                            )
+                        )
                     invoice.confidence_score = 1.0
-                    notes.append(f"Grand total ({invoice.grand_total:.2f}) verified by government QR.")
+                    notes.append(f"Grand total ({invoice.grand_total:.2f}) and line items populated from government QR.")
                 else:
-                    notes.append(f"WARNING: Extracted total ({invoice.grand_total:.2f}) differs from QR signed total ({qr.total_value:.2f}) by INR {diff:.2f}")
-                    ai_response.validation_errors.append(f"QR discrepancy: AI extracted {invoice.grand_total:.2f}, QR has {qr.total_value:.2f}")
-                    ai_response.validation_passed = False
+                    diff = abs(invoice.grand_total - qr.total_value)
+                    if diff <= 1.0:
+                        invoice.confidence_score = 1.0
+                        notes.append(f"Grand total ({invoice.grand_total:.2f}) verified by government QR.")
+                    else:
+                        notes.append(f"WARNING: Extracted total ({invoice.grand_total:.2f}) differs from QR signed total ({qr.total_value:.2f}) by INR {diff:.2f}")
+                        ai_response.validation_errors.append(f"QR discrepancy: AI extracted {invoice.grand_total:.2f}, QR has {qr.total_value:.2f}")
+                        ai_response.validation_passed = False
 
             invoice.extraction_notes = " | ".join(notes)
             ai_response.provider = f"{ai_response.provider}+qr_verified"

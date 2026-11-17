@@ -91,6 +91,7 @@ class DocumentProcessor:
         doc_type = DocumentType.UNKNOWN
         b2b_qr_found = False
         b2b_qr_data: Optional[QRCodeData] = None
+        preprocessed_bytes: Optional[bytes] = None
 
         try:
             if mime_type == "application/pdf":
@@ -129,6 +130,11 @@ class DocumentProcessor:
                 # Process single image
                 processed_img, angle = self.image_preprocessor.preprocess_image(file_bytes)
                 h, w = processed_img.shape[:2]
+
+                # Encode cleaned/deskewed image for passing to AI
+                ok, encoded_buf = cv2.imencode(".png", processed_img)
+                if ok:
+                    preprocessed_bytes = encoded_buf.tobytes()
 
                 qr_result = None
                 if settings.ENABLE_QR_SCANNER:
@@ -202,6 +208,7 @@ class DocumentProcessor:
                 digital_text_extracted=digital_text,
                 b2b_qr_found=b2b_qr_found,
                 b2b_qr_data=b2b_qr_data,
+                preprocessed_bytes=preprocessed_bytes,
                 processing_time_ms=elapsed_ms,
                 status="SUCCESS",
             )

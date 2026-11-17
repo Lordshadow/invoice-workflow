@@ -18,6 +18,17 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def offline_mock_for_unit_tests(monkeypatch):
+    """
+    Enforces Senior Backend Developer standard:
+    Unit tests must be fast, deterministic, and independent of external API availability.
+    Forces mock mode for extractor in unit tests.
+    """
+    from backend.app.routers.extraction import service
+    monkeypatch.setattr(service.gemini_extractor, "mode", "mock")
+
+
 @pytest.fixture
 def sample_image_bytes():
     """Generates a clean synthetic invoice receipt image in bytes."""

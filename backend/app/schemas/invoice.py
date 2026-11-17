@@ -2,8 +2,10 @@
 Canonical Pydantic Schemas for AI Invoice Extraction.
 Standardizes invoice headers, line items, Indian GST taxes, and totals across all extraction providers.
 """
+from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from dateutil import parser
+from pydantic import BaseModel, Field, field_validator
 
 
 class SupplierDetails(BaseModel):
@@ -26,6 +28,32 @@ class InvoiceMetadata(BaseModel):
     due_date: Optional[str] = Field(default=None, description="Payment due date if specified")
     place_of_supply: Optional[str] = Field(default=None, description="Indian state code or name (e.g., '33-Tamil Nadu')")
     currency: str = Field(default="INR", description="ISO currency code (e.g., INR, USD)")
+
+    @field_validator("invoice_date", "due_date", mode="before")
+    @classmethod
+    def normalize_date(cls, v):
+        if not v or not isinstance(v, str):
+            return None
+        cleaned = v.strip()
+        if not cleaned or cleaned.lower() in ("null", "none", "n/a", "unknown"):
+            return None
+        # Try deterministic parsing
+        for fmt in (
+            "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y",
+            "%d %B %Y", "%d %b %Y", "%B %d, %Y", "%b %d, %Y",
+            "%Y/%m/%d", "%d.%m.%Y", "%Y.%m.%d"
+        ):
+            try:
+                dt = datetime.strptime(cleaned, fmt)
+                return dt.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        # Fallback to dateutil fuzzy parser
+        try:
+            dt = parser.parse(cleaned, fuzzy=False)
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            return cleaned
 
 
 class LineItem(BaseModel):
