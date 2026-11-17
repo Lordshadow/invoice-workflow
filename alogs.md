@@ -397,3 +397,30 @@ This file records all architectural decisions, file creations, modifications, QA
   - Full automated pytest suite executed: **47 passed, 0 failed** in 108.44s across all 6 test suites (100% pass rate).
   - All 11 database and lifecycle tests passed.
   - Status: PASS.
+
+
+### [2026-11-17 17:05:00 +05:30] Phase 2 Real Data Benchmarking, Human Correction Endpoint, HSN Type Coercion & Multimodal Fallback Cascade Fix
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Real-World Invoice Benchmark & Lifecycle Hardening
+- **Files Modified / Created**:
+  - `backend/app/schemas/invoice.py` (Modified): Added `@field_validator` with `mode="before"` across `LineItem` (`hsn_code`, `description`) and `SupplierDetails`/`BuyerDetails`/`InvoiceMetadata` (`name`, `gstin`, `phone`, `email`) to automatically coerce numeric integers emitted by LLMs into clean strings.
+  - `backend/app/schemas/invoice_api.py` (Modified): Added `InvoiceUpdateSchema`, `LineItemUpdateSchema`, and updated `RejectInvoiceSchema` to support human review editing and flexible payload parsing.
+  - `backend/app/services/groq_extractor.py` (Modified): Coerced string fields in supplier, buyer, metadata, and line-item dictionaries before canonical schema validation.
+  - `backend/app/services/extraction_service.py` (Modified): Fixed fallback cascade flaw where Groq rate-limiting (429) returning mock data was blocking Gemini Text-LLM and Gemini Vision. Condition updated to seamlessly cascade to Gemini whenever Groq fails or returns offline fallback.
+  - `backend/app/routers/invoices.py` (Modified):
+    - Added `PUT /api/v1/invoices/{id}` (`update_invoice`) enabling human correction of headers and line items, validating with OCC `expected_version`, re-running arithmetic validation via `InvoiceValidator`, transitioning status from `PENDING_CORRECTION` to `PENDING_APPROVAL`, incrementing OCC `version`, and recording audit logs.
+    - Updated `POST /api/v1/invoices/{id}/reject` to support both JSON body and Form data dynamically.
+  - `backend/tests/test_database_and_lifecycle.py` (Modified): Added 3 comprehensive tests: `test_update_invoice_endpoint_and_human_correction`, `test_reject_invoice_json_and_form_support`, and `test_hsn_and_string_coercion_on_canonical_models`.
+  - `alogs.md` (Modified): Appended entry.
+- **What Changed**:
+  - Benchmarked all 9 real sample invoices (`01_synthetic_invoice_digital.docx`, `02_synthetic_invoice_interstate.pdf`, `03_synthetic_invoice_printed_photo.jpg`, `04_synthetic_invoice_handwritten_photo.jpg`, `batch1-0500.jpg`, `ChatGPT Image Nov 17, 2026, 01_30_43 PM.jpg`, `ChatGPT Image Nov 17, 2026, 01_30_57 PM.jpg`, `multipage-3p-na-3.pdf`, `WhatsApp Image 2026-11-17 at 1.24.06 PM.jpeg`).
+  - Achieved 100% intake and extraction success across all samples (0 pipeline crashes).
+  - Validated Layer 1 deduplication rejecting all 9 re-uploads (`EXACT_FILE_DUPLICATE`).
+  - Validated OCC stale version updates returning HTTP 409 Conflict.
+  - Implemented human correction endpoint allowing accountants to resolve arithmetic or GSTIN discrepancies and move invoices to `PENDING_APPROVAL`.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check for bugs and test with real data".
+- **QA & Verification Status**:
+  - Full automated pytest suite executed: **50 passed, 0 failed** in 144.93s across all 6 test suites (100% pass rate).
+  - Status: PASS.

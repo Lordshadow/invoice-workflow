@@ -139,12 +139,30 @@ class GroqExtractor:
                     if k in parsed_dict["tax"]:
                         parsed_dict["tax"][k] = self._safe_float(parsed_dict["tax"][k])
 
+            if isinstance(parsed_dict.get("supplier"), dict):
+                for str_field in ("name", "gstin", "phone", "email"):
+                    if str_field in parsed_dict["supplier"] and parsed_dict["supplier"][str_field] is not None:
+                        parsed_dict["supplier"][str_field] = str(parsed_dict["supplier"][str_field]).strip()
+
+            if isinstance(parsed_dict.get("buyer"), dict):
+                for str_field in ("name", "gstin"):
+                    if str_field in parsed_dict["buyer"] and parsed_dict["buyer"][str_field] is not None:
+                        parsed_dict["buyer"][str_field] = str(parsed_dict["buyer"][str_field]).strip()
+
+            if isinstance(parsed_dict.get("metadata"), dict):
+                if "invoice_number" in parsed_dict["metadata"] and parsed_dict["metadata"]["invoice_number"] is not None:
+                    parsed_dict["metadata"]["invoice_number"] = str(parsed_dict["metadata"]["invoice_number"]).strip()
+
             if isinstance(parsed_dict.get("line_items"), list):
                 for item in parsed_dict["line_items"]:
                     if isinstance(item, dict):
                         for k in ("quantity", "unit_price", "discount", "tax_rate", "cgst_amount", "sgst_amount", "igst_amount", "total_amount"):
                             if k in item:
                                 item[k] = self._safe_float(item[k])
+                        if "hsn_code" in item and item["hsn_code"] is not None:
+                            item["hsn_code"] = str(item["hsn_code"]).strip()
+                        if "description" in item and item["description"] is not None:
+                            item["description"] = str(item["description"]).strip()
 
             # Clean and validate date fields
             meta = parsed_dict.get("metadata", {})

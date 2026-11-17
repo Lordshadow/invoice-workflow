@@ -88,28 +88,32 @@ class ExtractionService:
                     filename=filename
                 )
 
-            # 3B: If Groq inactive or returned failure, try Gemini Text-LLM
-            if not ai_response or not ai_response.success or not ai_response.invoice:
+            # 3B: If Groq inactive or returned failure or offline fallback, try Gemini Text-LLM
+            if not ai_response or not ai_response.success or not ai_response.invoice or ai_response.provider == "local_ocr_fallback":
                 logger.info(f"Invoking Gemini Text-LLM for '{filename}' text extraction")
-                ai_response = self.gemini_extractor.extract_from_text(
+                gemini_res = self.gemini_extractor.extract_from_text(
                     text=extracted_text,
                     filename=filename
                 )
+                if gemini_res and gemini_res.success and gemini_res.invoice:
+                    ai_response = gemini_res
 
         # Step 4: Multimodal Vision Fallback (LAST RESORT)
         # Invoked ONLY if local text extraction was empty or text-LLM failed completely
-        if not ai_response or not ai_response.success or not ai_response.invoice:
+        if not ai_response or not ai_response.success or not ai_response.invoice or ai_response.provider == "local_ocr_fallback":
             logger.warning(
-                f"Local text extraction unavailable or empty for '{filename}'. "
+                f"Local text extraction unavailable or unparsed for '{filename}'. "
                 "Falling back to Multimodal Vision as LAST RESORT..."
             )
             payload_bytes = doc_result.preprocessed_bytes if doc_result.preprocessed_bytes else file_bytes
             payload_mime = "image/png" if doc_result.preprocessed_bytes else doc_result.mime_type
-            ai_response = self.gemini_extractor.extract_invoice(
+            vision_res = self.gemini_extractor.extract_invoice(
                 file_bytes=payload_bytes,
                 mime_type=payload_mime,
                 filename=filename
             )
+            if vision_res and vision_res.success and vision_res.invoice:
+                ai_response = vision_res
 
         if not ai_response.success or not ai_response.invoice:
             return ai_response

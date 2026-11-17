@@ -3,7 +3,7 @@ Pydantic Schemas for Invoice Management, Workflow, and Delivery APIs.
 """
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.app.models.invoice import InvoiceStatus
 
@@ -20,6 +20,13 @@ class LineItemDTO(BaseModel):
     sgst_amount: float = 0.0
     igst_amount: float = 0.0
     total_amount: float = 0.0
+
+    @field_validator("hsn_code", mode="before")
+    @classmethod
+    def coerce_hsn(cls, v):
+        if v is None:
+            return None
+        return str(v).strip()
 
 
 class AuditLogDTO(BaseModel):
@@ -96,6 +103,37 @@ class InvoiceApprovalRequest(BaseModel):
     actor: str = Field(description="Username or user ID of approver")
     notes: Optional[str] = Field(default=None, description="Optional approval notes or sign-off remarks")
     expected_version: int = Field(description="OCC expected version for race condition prevention")
+
+
+class InvoiceRejectionRequest(BaseModel):
+    actor: str = Field(description="Username or user ID of rejecting user")
+    reason: str = Field(description="Mandatory rejection rationale")
+
+
+class InvoiceUpdateRequest(BaseModel):
+    actor: str = Field(description="Username or user ID of accountant/editor")
+    expected_version: int = Field(description="OCC expected version for race condition prevention")
+    notes: Optional[str] = Field(default=None, description="Reason or explanation for edit/correction")
+    supplier_name: Optional[str] = None
+    supplier_gstin: Optional[str] = None
+    supplier_address: Optional[str] = None
+    buyer_name: Optional[str] = None
+    buyer_gstin: Optional[str] = None
+    buyer_address: Optional[str] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[str] = None
+    due_date: Optional[str] = None
+    currency: Optional[str] = None
+    place_of_supply: Optional[str] = None
+    subtotal: Optional[float] = None
+    cgst: Optional[float] = None
+    sgst: Optional[float] = None
+    igst: Optional[float] = None
+    cess: Optional[float] = None
+    round_off: Optional[float] = None
+    grand_total: Optional[float] = None
+    line_items: Optional[List[LineItemDTO]] = None
+
 
 
 class ProcessInvoiceResponse(BaseModel):

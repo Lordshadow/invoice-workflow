@@ -5,7 +5,7 @@ Enforces ACID database transactions, maker-checker governance, OCC, and two-tier
 import json
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -26,10 +26,21 @@ from backend.app.schemas.invoice_api import (
     ExtractionLogDTO,
     InvoiceApprovalRequest,
     InvoiceDetailDTO,
+    InvoiceRejectionRequest,
     InvoiceSummaryDTO,
+    InvoiceUpdateRequest,
     LineItemDTO,
     ProcessInvoiceResponse,
 )
+from backend.app.schemas.invoice import (
+    BuyerDetails,
+    CanonicalInvoice,
+    InvoiceMetadata,
+    LineItem,
+    SupplierDetails,
+    TaxBreakdown,
+)
+from backend.app.services.invoice_validator import InvoiceValidator
 from backend.app.services.deduplication_service import (
     DeduplicationService,
     DuplicateType,
@@ -440,24 +451,228 @@ def approve_invoice(
     return get_invoice(inv.id, primary_db)
 
 
-@router.post("/{invoice_id}/reject", response_model=InvoiceDetailDTO, summary="Reject Invoice with Reason")
-def reject_invoice(
+@router.put("/{invoice_id}", response_model=InvoiceDetailDTO, summary="Update/Correct Invoice & Re-validate")
+def update_invoice(
     invoice_id: str,
-    actor: str = Form(..., description="Username or user ID of rejecting user"),
-    reason: str = Form(..., description="Mandatory rejection rationale"),
+    body: InvoiceUpdateRequest,
     db: Session = Depends(get_db)
 ):
-    """Transitions invoice to terminal REJECTED status with audit log."""
+    """
+    Human-in-the-Loop review and correction endpoint:
+    - Verifies OCC version lock.
+    - Updates invoice header fields and/or line items.
+    - Re-runs deterministic validation (InvoiceValidator).
+    - If valid, transitions from PENDING_CORRECTION / DUPLICATE_INVESTIGATION to PENDING_APPROVAL.
+    - Increments OCC version counter and logs audit record.
+    """
     inv = db.get(Invoice, invoice_id)
     if not inv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
+
+    if inv.status in (InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Cannot edit invoice in terminal state '{inv.status.value}'."
+        )
+
+    # OCC check
+    if body.expected_version != inv.version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"OCC conflict: expected version {body.expected_version}, but current version is {inv.version}."
+        )
+
+    changes = {}
+
+    # Update header fields if provided
+    field_mappings = [
+        ("supplier_name", body.supplier_name),
+        ("supplier_gstin", body.supplier_gstin),
+        ("supplier_address", body.supplier_address),
+        ("buyer_name", body.buyer_name),
+        ("buyer_gstin", body.buyer_gstin),
+        ("buyer_address", body.buyer_address),
+        ("invoice_number", body.invoice_number),
+        ("invoice_date", body.invoice_date),
+        ("due_date", body.due_date),
+        ("currency", body.currency),
+        ("place_of_supply", body.place_of_supply),
+        ("subtotal", body.subtotal),
+        ("cgst", body.cgst),
+        ("sgst", body.sgst),
+        ("igst", body.igst),
+        ("cess", body.cess),
+        ("round_off", body.round_off),
+        ("grand_total", body.grand_total),
+    ]
+
+    for field_name, new_val in field_mappings:
+        if new_val is not None:
+            old_val = getattr(inv, field_name)
+            if old_val != new_val:
+                changes[field_name] = {"old": old_val, "new": new_val}
+                setattr(inv, field_name, new_val)
+
+    # Update line items if provided
+    if body.line_items is not None:
+        for existing_item in list(inv.line_items):
+            db.delete(existing_item)
+        db.flush()
+
+        for new_item in body.line_items:
+            db_item = InvoiceLineItem(
+                invoice_id=inv.id,
+                description=new_item.description,
+                hsn_code=new_item.hsn_code,
+                quantity=new_item.quantity,
+                unit_price=new_item.unit_price,
+                discount=new_item.discount,
+                tax_rate=new_item.tax_rate,
+                cgst_amount=new_item.cgst_amount,
+                sgst_amount=new_item.sgst_amount,
+                igst_amount=new_item.igst_amount,
+                total_amount=new_item.total_amount
+            )
+            db.add(db_item)
+        db.flush()
+        changes["line_items_count"] = {"new": len(body.line_items)}
+
+    # Build CanonicalInvoice for re-validation
+    canonical_items = [
+        LineItem(
+            description=it.description,
+            hsn_code=it.hsn_code,
+            quantity=it.quantity,
+            unit_price=it.unit_price,
+            discount=it.discount,
+            tax_rate=it.tax_rate,
+            cgst_amount=it.cgst_amount,
+            sgst_amount=it.sgst_amount,
+            igst_amount=it.igst_amount,
+            total_amount=it.total_amount
+        )
+        for it in inv.line_items
+    ]
+
+    canonical = CanonicalInvoice(
+        supplier=SupplierDetails(
+            name=inv.supplier_name or "Unknown",
+            gstin=inv.supplier_gstin,
+            address=inv.supplier_address
+        ),
+        buyer=BuyerDetails(
+            name=inv.buyer_name,
+            gstin=inv.buyer_gstin,
+            address=inv.buyer_address
+        ),
+        metadata=InvoiceMetadata(
+            invoice_number=inv.invoice_number or "UNKNOWN",
+            invoice_date=inv.invoice_date,
+            due_date=inv.due_date,
+            place_of_supply=inv.place_of_supply,
+            currency=inv.currency or "INR"
+        ),
+        line_items=canonical_items,
+        subtotal=inv.subtotal,
+        tax=TaxBreakdown(
+            cgst=inv.cgst,
+            sgst=inv.sgst,
+            igst=inv.igst,
+            cess=inv.cess
+        ),
+        round_off=inv.round_off,
+        grand_total=inv.grand_total,
+        confidence_score=inv.confidence_score
+    )
+
+    is_valid, validation_errors = InvoiceValidator.validate(canonical)
+    inv.is_valid = is_valid
+    inv.validation_errors = json.dumps(validation_errors)
+
+    # State transition if validation status changed
+    old_status = inv.status
+    if is_valid and inv.status in (InvoiceStatus.PENDING_CORRECTION, InvoiceStatus.DUPLICATE_INVESTIGATION):
+        InvoiceStateMachine.transition(
+            invoice=inv,
+            target_status=InvoiceStatus.PENDING_APPROVAL,
+            actor=body.actor,
+            reason=f"Accountant corrections passed validation ({body.notes or 'Fields updated'})",
+            db=db
+        )
+    elif not is_valid and inv.status == InvoiceStatus.PENDING_APPROVAL:
+        InvoiceStateMachine.transition(
+            invoice=inv,
+            target_status=InvoiceStatus.PENDING_CORRECTION,
+            actor=body.actor,
+            reason="Edits introduced validation mismatches",
+            db=db
+        )
+
+    # Increment version
+    inv.version += 1
+
+    # Log audit entry
+    audit = AuditLog(
+        entity_type="invoice",
+        entity_id=inv.id,
+        actor=body.actor,
+        action="INVOICE_UPDATED",
+        changes_json=json.dumps({
+            "changes": changes,
+            "validation_passed": is_valid,
+            "old_status": old_status.value,
+            "new_status": inv.status.value,
+            "notes": body.notes
+        })
+    )
+    db.add(audit)
+    db.commit()
+
+    return get_invoice(inv.id, db)
+
+
+@router.post("/{invoice_id}/reject", response_model=InvoiceDetailDTO, summary="Reject Invoice with Reason")
+async def reject_invoice(
+    invoice_id: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Transitions invoice to terminal REJECTED status with audit log (accepts JSON or Form data)."""
+    inv = db.get(Invoice, invoice_id)
+    if not inv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
+
+    actor = None
+    reason = None
+
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            payload = await request.json()
+            actor = payload.get("actor")
+            reason = payload.get("reason")
+        except Exception:
+            pass
+    else:
+        try:
+            form = await request.form()
+            actor = form.get("actor")
+            reason = form.get("reason")
+        except Exception:
+            pass
+
+    if not actor or not reason:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Both 'actor' and 'reason' must be provided in request body."
+        )
 
     try:
         InvoiceStateMachine.transition(
             invoice=inv,
             target_status=InvoiceStatus.REJECTED,
-            actor=actor,
-            reason=reason,
+            actor=str(actor),
+            reason=str(reason),
             db=db
         )
         db.commit()

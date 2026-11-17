@@ -15,11 +15,25 @@ class SupplierDetails(BaseModel):
     phone: Optional[str] = Field(default=None, description="Contact phone number")
     email: Optional[str] = Field(default=None, description="Contact email address")
 
+    @field_validator("name", "gstin", "phone", "email", mode="before")
+    @classmethod
+    def coerce_str_fields(cls, v):
+        if v is None:
+            return None
+        return str(v).strip()
+
 
 class BuyerDetails(BaseModel):
     name: Optional[str] = Field(default=None, description="Recipient or buyer company name")
     gstin: Optional[str] = Field(default=None, description="15-character Indian GSTIN of the buyer")
     address: Optional[str] = Field(default=None, description="Billing or delivery address of the buyer")
+
+    @field_validator("name", "gstin", mode="before")
+    @classmethod
+    def coerce_str_fields(cls, v):
+        if v is None:
+            return None
+        return str(v).strip()
 
 
 class InvoiceMetadata(BaseModel):
@@ -28,6 +42,13 @@ class InvoiceMetadata(BaseModel):
     due_date: Optional[str] = Field(default=None, description="Payment due date if specified")
     place_of_supply: Optional[str] = Field(default=None, description="Indian state code or name (e.g., '33-Tamil Nadu')")
     currency: str = Field(default="INR", description="ISO currency code (e.g., INR, USD)")
+
+    @field_validator("invoice_number", mode="before")
+    @classmethod
+    def coerce_invoice_number(cls, v):
+        if v is None:
+            return ""
+        return str(v).strip()
 
     @field_validator("invoice_date", "due_date", mode="before")
     @classmethod
@@ -67,6 +88,20 @@ class LineItem(BaseModel):
     sgst_amount: float = Field(default=0.0, description="State GST amount for this line item")
     igst_amount: float = Field(default=0.0, description="Integrated GST amount for this line item")
     total_amount: float = Field(description="Line-item total amount including taxes or after discount")
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def coerce_description(cls, v):
+        if v is None:
+            return "Item"
+        return str(v).strip()
+
+    @field_validator("hsn_code", mode="before")
+    @classmethod
+    def coerce_hsn(cls, v):
+        if v is None:
+            return None
+        return str(v).strip()
 
 
 class TaxBreakdown(BaseModel):

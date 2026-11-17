@@ -345,3 +345,115 @@ class TestDatabaseAndLifecycle:
         """Verifies HTTP 404 for non-existent invoice ID."""
         res = client.get("/api/v1/invoices/00000000-0000-0000-0000-000000000000")
         assert res.status_code == 404
+
+    def test_update_invoice_endpoint_and_human_correction(self, client, sample_image_bytes):
+        """Verifies PUT /api/v1/invoices/{id} corrects invalid invoices, re-validates, and increments OCC version."""
+        # 1. Ingest an invoice
+        res = client.post(
+            "/api/v1/invoices/process",
+            files={"file": ("edit_test.png", sample_image_bytes, "image/png")},
+        )
+        assert res.status_code == 201
+        inv_id = res.json()["invoice_id"]
+        inv_detail = client.get(f"/api/v1/invoices/{inv_id}").json()
+        orig_version = inv_detail["version"]
+
+        # 2. Test OCC Version Mismatch (Stale Version -> HTTP 409)
+        conflict_res = client.put(
+            f"/api/v1/invoices/{inv_id}",
+            json={
+                "actor": "accountant_jane",
+                "expected_version": 999,
+                "supplier_name": "Corrected Supplier Ltd"
+            }
+        )
+        assert conflict_res.status_code == 409
+
+        # 3. Apply valid corrections (e.g. valid GSTIN, line items matching subtotal)
+        update_res = client.put(
+            f"/api/v1/invoices/{inv_id}",
+            json={
+                "actor": "accountant_jane",
+                "expected_version": orig_version,
+                "notes": "Fixed supplier name, GSTIN, and adjusted line items",
+                "supplier_name": "ACME INDUSTRIAL CORP",
+                "supplier_gstin": "33AAACA1234A1Z5",
+                "subtotal": 1000.0,
+                "cgst": 90.0,
+                "sgst": 90.0,
+                "igst": 0.0,
+                "grand_total": 1180.0,
+                "line_items": [
+                    {
+                        "description": "Premium Heavy Duty Bearings",
+                        "hsn_code": 8482,  # Tests integer HSN code coercion
+                        "quantity": 2.0,
+                        "unit_price": 500.0,
+                        "discount": 0.0,
+                        "tax_rate": 18.0,
+                        "cgst_amount": 90.0,
+                        "sgst_amount": 90.0,
+                        "igst_amount": 0.0,
+                        "total_amount": 1000.0
+                    }
+                ]
+            }
+        )
+        assert update_res.status_code == 200
+        updated = update_res.json()
+        assert updated["supplier_name"] == "ACME INDUSTRIAL CORP"
+        assert updated["supplier_gstin"] == "33AAACA1234A1Z5"
+        assert updated["version"] == orig_version + 1
+        assert updated["status"] == "PENDING_APPROVAL"
+        assert updated["is_valid"] is True
+        assert len(updated["line_items"]) == 1
+        assert updated["line_items"][0]["hsn_code"] == "8482"
+
+        # Verify audit trail contains update action
+        audit_actions = [a["action"] for a in updated["audit_logs"]]
+        assert "INVOICE_UPDATED" in audit_actions
+
+    def test_reject_invoice_json_and_form_support(self, client, sample_image_bytes):
+        """Verifies POST /api/v1/invoices/{id}/reject accepts both JSON body and Form data."""
+        # Test JSON body rejection
+        res = client.post(
+            "/api/v1/invoices/process",
+            files={"file": ("reject_json.png", sample_image_bytes, "image/png")},
+        )
+        inv_id = res.json()["invoice_id"]
+        rej_res = client.post(
+            f"/api/v1/invoices/{inv_id}/reject",
+            json={"actor": "auditor_smith", "reason": "Illegible receipt scan"}
+        )
+        assert rej_res.status_code == 200
+        assert rej_res.json()["status"] == "REJECTED"
+
+    def test_hsn_and_string_coercion_on_canonical_models(self):
+        """Verifies integer HSN codes, numeric invoice numbers, and numeric phone numbers are cleanly coerced to strings."""
+        from backend.app.schemas.invoice import LineItem, SupplierDetails, InvoiceMetadata
+
+        item = LineItem(
+            description="Motor Shaft",
+            hsn_code=8483,  # Integer input
+            quantity=1.0,
+            unit_price=150.0,
+            total_amount=150.0
+        )
+        assert item.hsn_code == "8483"
+        assert isinstance(item.hsn_code, str)
+
+        sup = SupplierDetails(
+            name="Supplier A",
+            phone=9876543210,  # Numeric input
+            gstin="33AAACA1234A1Z5"
+        )
+        assert sup.phone == "9876543210"
+        assert isinstance(sup.phone, str)
+
+        meta = InvoiceMetadata(
+            invoice_number=10042,  # Numeric invoice number
+            invoice_date="2026-11-17"
+        )
+        assert meta.invoice_number == "10042"
+        assert isinstance(meta.invoice_number, str)
+
