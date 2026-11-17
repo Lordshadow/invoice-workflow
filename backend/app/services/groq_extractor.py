@@ -21,6 +21,7 @@ from backend.app.schemas.invoice import (
     SupplierDetails,
     TaxBreakdown,
 )
+from backend.app.services.invoice_validator import InvoiceValidator
 
 logger = logging.getLogger("invoice_processor.groq")
 
@@ -131,9 +132,9 @@ class GroqExtractor:
             # Clean and validate date fields
             meta = parsed_dict.get("metadata", {})
             if meta.get("invoice_date"):
-                meta["invoice_date"] = self._normalize_date(meta["invoice_date"])
+                meta["invoice_date"] = InvoiceValidator.normalize_date(meta["invoice_date"])
             if meta.get("due_date"):
-                meta["due_date"] = self._normalize_date(meta["due_date"])
+                meta["due_date"] = InvoiceValidator.normalize_date(meta["due_date"])
 
             # Ensure grand_total and subtotal are populated
             if parsed_dict.get("subtotal") is None or parsed_dict.get("subtotal") == 0.0:
@@ -166,7 +167,7 @@ class GroqExtractor:
                     )
                 )
 
-            valid, errors = self.validate_arithmetic(invoice_model)
+            valid, errors = InvoiceValidator.validate(invoice_model)
 
             return ExtractionResponse(
                 success=True,
@@ -186,65 +187,12 @@ class GroqExtractor:
     @staticmethod
     def _normalize_date(date_str: Optional[str]) -> Optional[str]:
         """Ensures YYYY-MM-DD standard date format."""
-        if not date_str:
-            return None
-        clean_date = date_str.strip()
-        if re.match(r"^\d{4}-\d{2}-\d{2}$", clean_date):
-            return clean_date
-        import dateutil.parser
-        try:
-            parsed = dateutil.parser.parse(clean_date)
-            return parsed.strftime("%Y-%m-%d")
-        except Exception:
-            return clean_date
+        return InvoiceValidator.normalize_date(date_str)
 
     @staticmethod
     def validate_arithmetic(invoice: CanonicalInvoice) -> Tuple[bool, List[str]]:
-        """
-        Enforces QA Auditor and Senior Backend Developer standards:
-        - Exact 2-decimal arithmetic reconciliation: Subtotal + CGST + SGST + IGST + Cess + RoundOff == Grand Total
-        - Indian GSTIN validation (only for INR / India domestic invoices)
-        """
-        errors = []
-        is_inr_or_domestic = (invoice.metadata.currency or "INR").upper() == "INR"
-
-        # 1. GSTIN format validation
-        if invoice.supplier and invoice.supplier.gstin:
-            gstin = invoice.supplier.gstin.strip().upper()
-            gstin_regex = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
-            if is_inr_or_domestic and not re.match(gstin_regex, gstin):
-                errors.append(f"Invalid Indian Supplier GSTIN format: '{gstin}'")
-
-        # 2. Line item summation (matches either Grand Total for tax-inclusive or Subtotal for tax-exclusive)
-        if invoice.line_items:
-            items_total = round(sum(item.total_amount for item in invoice.line_items), 2)
-            if invoice.grand_total > 0 and (abs(items_total - invoice.grand_total) > 1.0 and abs(items_total - invoice.subtotal) > 1.0):
-                errors.append(
-                    f"Line items total ({items_total:.2f}) does not match Grand Total ({invoice.grand_total:.2f}) or Subtotal ({invoice.subtotal:.2f})"
-                )
-
-        # 3. Overall tax and subtotal arithmetic
-        calculated_total = round(
-            invoice.subtotal
-            + invoice.tax.cgst
-            + invoice.tax.sgst
-            + invoice.tax.igst
-            + invoice.tax.cess
-            + invoice.round_off,
-            2,
-        )
-
-        diff = abs(calculated_total - invoice.grand_total)
-        if diff > 0.05:
-            errors.append(
-                f"Arithmetic mismatch: Subtotal ({invoice.subtotal:.2f}) + "
-                f"Taxes ({invoice.tax.cgst + invoice.tax.sgst + invoice.tax.igst + invoice.tax.cess:.2f}) + "
-                f"RoundOff ({invoice.round_off:.2f}) = {calculated_total:.2f}, "
-                f"expected Grand Total: {invoice.grand_total:.2f} (diff: {diff:.2f})"
-            )
-
-        is_valid = len(errors) == 0
-        return is_valid, errors
+        """Delegates to centralized InvoiceValidator."""
+        return InvoiceValidator.validate(invoice)
 
     def _fallback_local_parse(self, filename: str, start_time: float, raw_text: Optional[str] = None) -> ExtractionResponse:
         """Deterministic local offline text parser fallback."""

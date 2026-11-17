@@ -13,6 +13,7 @@ from backend.app.schemas.invoice import (
 from backend.app.services.document_processor import DocumentProcessor
 from backend.app.services.gemini_extractor import GeminiExtractor
 from backend.app.services.groq_extractor import GroqExtractor
+from backend.app.services.invoice_validator import InvoiceValidator
 from backend.app.services.paddle_extractor import PaddleOCRExtractor
 
 logger = logging.getLogger("invoice_processor.orchestrator")
@@ -178,8 +179,12 @@ class ExtractionService:
             invoice.extraction_notes = " | ".join(notes)
             ai_response.provider = f"{ai_response.provider}+qr_verified"
 
-        # Re-run arithmetic validation on final invoice
-        valid, errors = self.gemini_extractor.validate_arithmetic(invoice)
+        # Attach OCR bounding boxes for split-screen canvas overlays
+        if bounding_boxes and not ai_response.bounding_boxes:
+            ai_response.bounding_boxes = bounding_boxes
+
+        # Re-run arithmetic validation on final invoice using unified InvoiceValidator
+        valid, errors = InvoiceValidator.validate(invoice)
         if not valid:
             ai_response.validation_passed = False
             for err in errors:

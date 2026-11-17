@@ -60,7 +60,7 @@ async def preprocess_document(
 
     if result.status == "FAILED":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=result.error_message or "Failed to process document."
         )
 

@@ -125,6 +125,28 @@ class DocumentProcessor:
                         )
                     )
 
+                # For scanned PDFs, deskew and encode page(s) into preprocessed_bytes for OCR
+                if not is_digital and page_images:
+                    deskewed_pages = []
+                    for bgr_img in page_images[:3]:
+                        angle = self.image_preprocessor.detect_skew_angle(bgr_img)
+                        deskewed = self.image_preprocessor.rotate_image(bgr_img, angle)
+                        deskewed_pages.append(deskewed)
+
+                    if len(deskewed_pages) == 1:
+                        final_img = deskewed_pages[0]
+                    else:
+                        target_w = min(img.shape[1] for img in deskewed_pages)
+                        resized_pages = [
+                            cv2.resize(img, (target_w, int(img.shape[0] * target_w / img.shape[1])))
+                            for img in deskewed_pages
+                        ]
+                        final_img = np.vstack(resized_pages)
+
+                    ok, encoded_buf = cv2.imencode(".png", final_img)
+                    if ok:
+                        preprocessed_bytes = encoded_buf.tobytes()
+
             elif mime_type in ("image/jpeg", "image/png", "image/webp"):
                 doc_type = DocumentType.IMAGE
                 # Process single image

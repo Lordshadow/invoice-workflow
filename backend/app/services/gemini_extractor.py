@@ -22,6 +22,7 @@ from backend.app.schemas.invoice import (
     SupplierDetails,
     TaxBreakdown,
 )
+from backend.app.services.invoice_validator import InvoiceValidator
 
 logger = logging.getLogger("invoice_processor.gemini")
 
@@ -325,54 +326,8 @@ class GeminiExtractor:
 
     @staticmethod
     def validate_arithmetic(invoice: CanonicalInvoice) -> Tuple[bool, list[str]]:
-        """
-        Deterministic business & arithmetic checks:
-        1. Subtotal + Taxes +/- RoundOff == Grand Total (with strict 2-decimal rounding)
-        2. Line items total coherence
-        3. Indian 15-character GSTIN format validation
-        """
-        errors = []
-
-        # 1. Floating-point safe arithmetic verification (rounded to 2 decimals)
-        subtotal = round(invoice.subtotal, 2)
-        calc_taxes = round(invoice.tax.cgst + invoice.tax.sgst + invoice.tax.igst + invoice.tax.cess, 2)
-        round_off = round(invoice.round_off, 2)
-        grand_total = round(invoice.grand_total, 2)
-        expected_total = round(subtotal + calc_taxes + round_off, 2)
-
-        # Check total equation with tolerance of +/- 1.00 for currency rounding
-        if abs(round(expected_total - grand_total, 2)) > 1.00:
-            errors.append(
-                f"Grand total mismatch: Extracted {grand_total:.2f}, expected {expected_total:.2f} (Subtotal: {subtotal:.2f} + Taxes: {calc_taxes:.2f} + RoundOff: {round_off:.2f})"
-            )
-
-        # 2. Check line items sum coherence
-        if invoice.line_items:
-            items_sum = round(sum(round(item.total_amount, 2) for item in invoice.line_items), 2)
-            if abs(round(items_sum - subtotal, 2)) > 2.0 and abs(round(items_sum - grand_total, 2)) > 2.0:
-                logger.debug(f"[DEV_DEBUG] Line items sum ({items_sum:.2f}) differs from subtotal ({subtotal:.2f})")
-
-        # 3. Tax ID structure validation:
-        # Enforces 15-character Indian GSTIN for domestic INR invoices; allows standard alphanumeric tax/VAT IDs for foreign invoices.
-        if invoice.supplier.gstin:
-            gstin_clean = invoice.supplier.gstin.strip().upper()
-            is_indian_invoice = (
-                invoice.metadata.currency == "INR"
-                or (invoice.metadata.place_of_supply and any(k in invoice.metadata.place_of_supply.lower() for k in ["india", "tamil", "delhi", "maharashtra", "karnataka", "telangana", "gujarat", "uttar"]))
-                or (invoice.supplier.address and "india" in invoice.supplier.address.lower())
-            )
-            gstin_regex = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
-            if is_indian_invoice:
-                if not re.match(gstin_regex, gstin_clean):
-                    errors.append(
-                        f"Non-standard Supplier GSTIN format: '{invoice.supplier.gstin}' (Expected 15-character Indian GST format)"
-                    )
-            else:
-                # International invoice (e.g. US Tax ID or Namibian VAT): verify standard alphanumeric format (4-25 chars)
-                if not re.match(r"^[A-Z0-9\-\.\/]{4,25}$", gstin_clean):
-                    errors.append(
-                        f"Invalid Foreign Tax / VAT Registration ID: '{invoice.supplier.gstin}'"
-                    )
+        """Delegates to centralized InvoiceValidator."""
+        return InvoiceValidator.validate(invoice)
 
         is_valid = len(errors) == 0
         return is_valid, errors

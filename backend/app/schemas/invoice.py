@@ -3,7 +3,7 @@ Canonical Pydantic Schemas for AI Invoice Extraction.
 Standardizes invoice headers, line items, Indian GST taxes, and totals across all extraction providers.
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from dateutil import parser
 from pydantic import BaseModel, Field, field_validator
 
@@ -99,3 +99,6 @@ class ExtractionResponse(BaseModel):
     validation_errors: List[str] = Field(default_factory=list)
     raw_response: Optional[dict] = None
     error_message: Optional[str] = None
+    bounding_boxes: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="OCR text bounding boxes with coordinates and confidence for canvas overlays"
+    )

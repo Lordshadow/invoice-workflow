@@ -66,7 +66,7 @@ async def extract_invoice(
 
     if not result.success and result.error_message:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=result.error_message
         )
 

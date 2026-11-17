@@ -290,3 +290,31 @@ This file records all architectural decisions, file creations, modifications, QA
   - Full automated pytest suite executed: 26 passed, 0 failed in 47.3s.
   - All 4 new Groq tests passed in 1.5s.
   - Status: PASS.
+
+
+### [2026-11-17 15:55:00 +05:30] Comprehensive Bug Audit, Validator Centralization & Scanned PDF OCR Pipeline Fixes
+
+- **Actor / Mode**: AI Engineering Assistant
+- **Phase / Scope**: Architecture Hardening — Bug Elimination, Code Deduplication & Robust Multi-Page OCR
+- **Files Modified / Created**:
+  - `backend/app/services/invoice_validator.py` (Created): Centralized, single-source-of-truth validation engine for arithmetic reconciliation, date normalization, domestic Indian GSTIN verification, and foreign VAT/Tax ID validation.
+  - `backend/app/services/gemini_extractor.py` (Modified): Refactored to delegate date normalization and arithmetic validation to `InvoiceValidator`.
+  - `backend/app/services/groq_extractor.py` (Modified): Reordered prompt template to place totals before line items, increased `max_tokens` to 4096 to prevent truncation on large 30+ item invoices, and delegated arithmetic validation to `InvoiceValidator`.
+  - `backend/app/services/extraction_service.py` (Modified): Refactored to delegate validation to `InvoiceValidator` and preserved PaddleOCR bounding boxes in responses.
+  - `backend/app/schemas/invoice.py` (Modified): Added `bounding_boxes: Optional[List[Dict[str, Any]]]` to `ExtractionResponse` for Phase 6 frontend canvas overlays.
+  - `backend/app/services/document_processor.py` (Modified): Fixed scanned non-digital PDF handling by rendering up to 3 pages at 300 DPI, deskewing, and storing PNG image bytes in `preprocessed_bytes` so PaddleOCR decodes clean image pixels instead of failing on raw PDF bytes.
+  - `backend/app/routers/document_processing.py` & `backend/app/routers/extraction.py` (Modified): Updated deprecated `status.HTTP_422_UNPROCESSABLE_ENTITY` to `status.HTTP_422_UNPROCESSABLE_CONTENT`.
+  - `backend/tests/test_invoice_validator.py` (Created): 5 automated unit tests covering date parsing, Indian GSTINs, foreign tax IDs, tax-inclusive vs tax-exclusive line items, and arithmetic mismatches.
+  - `alogs.md` (Modified): Appended activity log for comprehensive bug audit.
+- **What Changed**:
+  - Eliminated duplicate validation logic across `gemini_extractor.py`, `groq_extractor.py`, and `extraction_service.py` by centralizing into `InvoiceValidator`.
+  - Resolved scanned multi-page PDF failure where raw PDF bytes were passed to `cv2.imdecode` in PaddleOCR.
+  - Solved `grand_total` missing error on multi-page invoices with >30 items by outputting totals prior to line items in Groq prompt.
+  - Accommodated both tax-inclusive and tax-exclusive line item summation conventions standard in B2B invoices.
+  - Replaced deprecated Starlette HTTP 422 constants.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "before moving on check for bugs and logical mistakes and also clean messy codes and make sure that the changes must not beak or bring any new bugs".
+- **QA & Verification Status**:
+  - Full automated pytest suite executed: 31 passed, 0 failed in 41.99s.
+  - All 5 new `InvoiceValidator` tests passed.
+  - Status: PASS.
