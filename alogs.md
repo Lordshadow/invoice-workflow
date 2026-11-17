@@ -90,3 +90,25 @@ This file records all architectural decisions, file creations, modifications, QA
   - Total 14 tests executed: 14 PASSED, 0 FAILED (100% pass rate).
   - Verified extraction status endpoint, image extraction, B2B QR fastpath, empty file handling, and math validator pass/fail edge cases.
   - Status: PASS.
+
+
+### [2026-11-17 13:16:15 +05:30] Refinement: Optional QR Code Scanning & Comprehensive Requirement Extraction
+
+- **Actor / Mode**: AI Engineering Assistant
+- **Phase / Scope**: Phase 1 — Extraction Service Refinement & Scope Alignment
+- **Files Modified / Created**:
+  - `backend/app/config.py` (Modified): Added `ENABLE_QR_SCANNER` configuration flag (defaults to True, easily toggleable via `.env`).
+  - `backend/app/services/document_processor.py` (Modified): Conditional check on `ENABLE_QR_SCANNER` for both image and PDF extraction streams.
+  - `backend/app/services/extraction_service.py` (Modified): Redesigned extraction flow so Gemini Multimodal **always** extracts all required requirements (complete itemized line items, descriptions, rates, quantities, taxes, and totals). The QR code is made strictly optional and functions as a cross-verification/enrichment layer rather than a line-item bypass.
+  - `backend/tests/test_extraction.py` (Modified): Updated tests to verify full line items are preserved during QR enrichment.
+  - `alogs.md` (Modified): Recorded activity log entry.
+- **What Changed**:
+  - Decoupled line-item extraction from QR scanning: AI model extracts all fields and line items regardless of whether a QR code exists.
+  - When a QR code is present, it optionally enriches the invoice with the official government IRN, cross-verifies supplier GSTIN and grand total, and raises verification warnings if discrepancies are found.
+  - Added toggle `ENABLE_QR_SCANNER` to allow turning off QR detection completely when not needed.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: e-invoice QR codes only contain summary totals and do not contain individual itemized line-item details. The AI model must always extract the complete invoice requirements.
+- **QA & Verification Status**:
+  - Automated pytest test suite executed: 14 tests, 14 passed (100% pass rate).
+  - Verified full line items are extracted and preserved with and without QR codes.
+  - Status: PASS.

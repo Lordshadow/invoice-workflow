@@ -96,8 +96,10 @@ class DocumentProcessor:
 
                 for idx, bgr_img in enumerate(page_images):
                     meta = page_meta[idx]
-                    # Check for QR code on this page
-                    qr_result = self.qr_scanner.scan_image(bgr_img)
+                    # Check for optional QR code on this page if enabled
+                    qr_result = None
+                    if settings.ENABLE_QR_SCANNER:
+                        qr_result = self.qr_scanner.scan_image(bgr_img)
                     has_qr = qr_result is not None
                     if qr_result and qr_result.is_gst_einvoice and not b2b_qr_found:
                         b2b_qr_found = True
@@ -124,7 +126,9 @@ class DocumentProcessor:
                 processed_img, angle = self.image_preprocessor.preprocess_image(file_bytes)
                 h, w = processed_img.shape[:2]
 
-                qr_result = self.qr_scanner.scan_image(processed_img)
+                qr_result = None
+                if settings.ENABLE_QR_SCANNER:
+                    qr_result = self.qr_scanner.scan_image(processed_img)
                 has_qr = qr_result is not None
                 if qr_result and qr_result.is_gst_einvoice:
                     b2b_qr_found = True

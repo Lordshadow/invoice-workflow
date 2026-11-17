@@ -27,6 +27,9 @@ class Settings(BaseModel):
     PDF_DPI: int = 300
     TEXT_DENSITY_THRESHOLD_CHARS: int = 80
     DESKEW_MAX_ANGLE: float = 45.0
+    ENABLE_QR_SCANNER: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_QR_SCANNER", "true").lower() in ("true", "1", "yes")
+    )
 
     # 1. Gemini Developer API Configuration (Local Testing)
     GEMINI_API_KEY: str = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY", "").strip())

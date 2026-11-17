@@ -44,7 +44,7 @@ class TestInvoiceExtractionAPI:
         assert "validation_passed" in data
 
     def test_extract_b2b_qr_fastpath(self, client, sample_gst_einvoice_qr_image_bytes):
-        """Verifies that an invoice with a B2B QR code bypasses LLM and returns instantly with provider='b2b_qr'."""
+        """Verifies that an optional B2B QR code enriches and verifies the full extraction without omitting line items."""
         response = client.post(
             "/api/v1/extract",
             files={"file": ("einvoice_qr.png", sample_gst_einvoice_qr_image_bytes, "image/png")}
@@ -52,10 +52,11 @@ class TestInvoiceExtractionAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["provider"] == "b2b_qr"
-        assert data["invoice"]["supplier"]["gstin"] == "33AAAAA0000A1Z5"
-        assert data["invoice"]["metadata"]["invoice_number"] == "INV-2026-QR-001"
-        assert data["invoice"]["grand_total"] == 11800.0
+        assert "qr_verified" in data["provider"]
+        assert data["invoice"]["supplier"]["name"] is not None
+        assert data["invoice"]["supplier"]["gstin"] is not None
+        assert len(data["invoice"]["line_items"]) >= 1  # Full line items are preserved!
+        assert "Verified against Indian GST" in data["invoice"]["extraction_notes"]
 
     def test_extract_empty_file(self, client):
         """Verifies HTTP 400 when uploading an empty file for extraction."""
