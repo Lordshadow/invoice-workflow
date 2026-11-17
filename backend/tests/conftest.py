@@ -1,8 +1,11 @@
 """
-Pytest configuration and test fixtures for Document Processing.
+Pytest configuration and test fixtures for Document Processing and AI Extraction.
 """
+import base64
 import io
+import json
 import pytest
+import qrcode
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
@@ -42,4 +45,38 @@ def sample_skewed_image_bytes(sample_image_bytes):
     rotated = img.rotate(5, expand=True, fillcolor=(255, 255, 255))
     buf = io.BytesIO()
     rotated.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+@pytest.fixture
+def sample_gst_einvoice_qr_image_bytes():
+    """Generates an image containing a real-world structured Indian GST B2B e-invoice QR code."""
+    gstn_payload = {
+        "SellerGstin": "33AAAAA0000A1Z5",
+        "BuyerGstin": "33BBBBB1111B2Z6",
+        "DocNo": "INV-2026-QR-001",
+        "DocTyp": "INV",
+        "DocDt": "17/11/2026",
+        "TotInvVal": 11800.0,
+        "ItemCnt": 2,
+        "MainHsnCode": "8482",
+        "Irn": "a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef"
+    }
+    header_b64 = base64.urlsafe_b64encode(json.dumps({"alg": "RS256"}).encode()).decode()
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(gstn_payload).encode()).decode()
+    dummy_jwt = f"{header_b64}.{payload_b64}.dummy_signature"
+
+    qr = qrcode.QRCode(box_size=6, border=4)
+    qr.add_data(dummy_jwt)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    qr_pil = qr_img.get_image() if hasattr(qr_img, "get_image") else getattr(qr_img, "_img", qr_img)
+    if hasattr(qr_pil, "convert"):
+        qr_pil = qr_pil.convert("RGB")
+
+    canvas = Image.new("RGB", (800, 1000), color=(255, 255, 255))
+    canvas.paste(qr_pil, (50, 50))
+
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG")
     return buf.getvalue()

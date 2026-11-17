@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
 from backend.app.routers.document_processing import router as document_router
+from backend.app.routers.extraction import router as extraction_router
 
 # Configure root logger
 log_level = logging.DEBUG if settings.DEBUG else logging.INFO
@@ -55,6 +56,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Register API Routers
 app.include_router(document_router, prefix=settings.API_V1_PREFIX)
+app.include_router(extraction_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", tags=["System"])

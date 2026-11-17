@@ -23,6 +23,10 @@ tokens/
 .env
 .env.*
 !.env.example
+*.key
+*.pem
+*key*.txt
+api keys.txt
 
 # Operating System Files
 Thumbs.db
