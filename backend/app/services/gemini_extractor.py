@@ -78,9 +78,102 @@ class GeminiExtractor:
         self.mode = "mock"
         logger.warning("No Gemini API key or GCP credentials configured. Running in offline MOCK mode for testing.")
 
+    def extract_from_text(self, text: str, filename: str = "document") -> ExtractionResponse:
+        """
+        Extracts structured canonical invoice data from pre-extracted OCR text (via PaddleOCR or PyMuPDF).
+        Uses text-only tokens (ultra-low cost, sub-second latency, zero vision token overhead).
+        """
+        start_time = time.perf_counter()
+
+        if self.mode == "mock" or self.client is None:
+            return self._generate_mock_extraction(filename, start_time)
+
+        try:
+            logger.debug(f"[DEV_DEBUG] Invoking text-only LLM ({self.mode}:{self.model_name}) for '{filename}' ({len(text)} chars)")
+
+            content_items = [
+                f"Raw Extracted Document OCR Text:\n{text}",
+                "Extract all invoice details from this text into the required canonical JSON schema."
+            ]
+
+            config = types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+                response_mime_type="application/json",
+                response_schema=CanonicalInvoice,
+                temperature=0.0
+            )
+
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=content_items,
+                config=config
+            )
+
+            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+            raw_text = response.text or "{}"
+            logger.debug(f"[DEV_DEBUG] Text-LLM response received in {elapsed_ms:.2f}ms: length={len(raw_text)} chars")
+
+            parsed_dict = json.loads(raw_text)
+            invoice_model = CanonicalInvoice.model_validate(parsed_dict)
+
+            # Ensure at least 1 line item exists for database relational integrity
+            if not invoice_model.line_items and (invoice_model.subtotal > 0 or invoice_model.grand_total > 0):
+                fallback_amt = round(invoice_model.subtotal if invoice_model.subtotal > 0 else invoice_model.grand_total, 2)
+                invoice_model.line_items.append(
+                    LineItem(
+                        description="General Invoice Amount (Un-itemized Receipt)",
+                        hsn_code=None,
+                        quantity=1.0,
+                        unit_price=fallback_amt,
+                        discount=0.0,
+                        tax_rate=0.0,
+                        cgst_amount=invoice_model.tax.cgst,
+                        sgst_amount=invoice_model.tax.sgst,
+                        igst_amount=invoice_model.tax.igst,
+                        total_amount=fallback_amt
+                    )
+                )
+                note = "Synthesized fallback line item for un-itemized invoice."
+                invoice_model.extraction_notes = f"{invoice_model.extraction_notes} | {note}" if invoice_model.extraction_notes else note
+
+            valid, errors = self.validate_arithmetic(invoice_model)
+
+            return ExtractionResponse(
+                success=True,
+                provider="local_ocr_text_llm",
+                model_name=self.model_name,
+                latency_ms=elapsed_ms,
+                invoice=invoice_model,
+                validation_passed=valid,
+                validation_errors=errors,
+                raw_response=parsed_dict
+            )
+
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+            logger.error(f"Text-LLM extraction failed for '{filename}': {exc}", exc_info=True)
+            exc_str = str(exc)
+            if ("UNAUTHENTICATED" in exc_str or "RESOURCE_EXHAUSTED" in exc_str or "402" in exc_str or "429" in exc_str) and settings.DEBUG:
+                logger.warning(f"Live API quota/auth issue ({exc_str}). Falling back to mock extraction in DEBUG mode.")
+                mock_resp = self._generate_mock_extraction(filename, start_time)
+                mock_resp.error_message = f"API Quota/Auth Notice: {exc_str}"
+                return mock_resp
+
+            return ExtractionResponse(
+                success=False,
+                provider=self.mode,
+                model_name=self.model_name,
+                latency_ms=elapsed_ms,
+                invoice=None,
+                validation_passed=False,
+                validation_errors=[str(exc)],
+                error_message=str(exc)
+            )
+
     def extract_invoice(self, file_bytes: bytes, mime_type: str, filename: str = "document") -> ExtractionResponse:
         """
-        Extracts structured canonical invoice data from document bytes (PDF, JPEG, PNG, WEBP).
+        Multimodal Vision Fallback: Extracts structured canonical invoice data from raw document bytes (PDF, JPEG, PNG, WEBP).
+        Kept as a fallback when local OCR fails or cannot resolve complex visual elements.
         """
         start_time = time.perf_counter()
 
@@ -254,14 +347,27 @@ class GeminiExtractor:
             if abs(round(items_sum - subtotal, 2)) > 2.0 and abs(round(items_sum - grand_total, 2)) > 2.0:
                 logger.debug(f"[DEV_DEBUG] Line items sum ({items_sum:.2f}) differs from subtotal ({subtotal:.2f})")
 
-        # 3. Indian GSTIN structure validation (15 characters: 2 state + 10 PAN + 1 entity + 'Z' + 1 checksum)
+        # 3. Tax ID structure validation:
+        # Enforces 15-character Indian GSTIN for domestic INR invoices; allows standard alphanumeric tax/VAT IDs for foreign invoices.
         if invoice.supplier.gstin:
             gstin_clean = invoice.supplier.gstin.strip().upper()
+            is_indian_invoice = (
+                invoice.metadata.currency == "INR"
+                or (invoice.metadata.place_of_supply and any(k in invoice.metadata.place_of_supply.lower() for k in ["india", "tamil", "delhi", "maharashtra", "karnataka", "telangana", "gujarat", "uttar"]))
+                or (invoice.supplier.address and "india" in invoice.supplier.address.lower())
+            )
             gstin_regex = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
-            if not re.match(gstin_regex, gstin_clean):
-                errors.append(
-                    f"Non-standard Supplier GSTIN format: '{invoice.supplier.gstin}' (Expected 15-character Indian GST format)"
-                )
+            if is_indian_invoice:
+                if not re.match(gstin_regex, gstin_clean):
+                    errors.append(
+                        f"Non-standard Supplier GSTIN format: '{invoice.supplier.gstin}' (Expected 15-character Indian GST format)"
+                    )
+            else:
+                # International invoice (e.g. US Tax ID or Namibian VAT): verify standard alphanumeric format (4-25 chars)
+                if not re.match(r"^[A-Z0-9\-\.\/]{4,25}$", gstin_clean):
+                    errors.append(
+                        f"Invalid Foreign Tax / VAT Registration ID: '{invoice.supplier.gstin}'"
+                    )
 
         is_valid = len(errors) == 0
         return is_valid, errors

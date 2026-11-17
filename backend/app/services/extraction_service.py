@@ -12,29 +12,33 @@ from backend.app.schemas.invoice import (
 )
 from backend.app.services.document_processor import DocumentProcessor
 from backend.app.services.gemini_extractor import GeminiExtractor
+from backend.app.services.paddle_extractor import PaddleOCRExtractor
 
 logger = logging.getLogger("invoice_processor.orchestrator")
 
 
 class ExtractionService:
     """
-    Orchestrates the entire extraction pipeline:
+    Orchestrates the decoupled extraction pipeline:
     1. Preprocessing (deskewing, PDF inspection, optional QR scan).
-    2. Comprehensive Multimodal AI Extraction (Gemini / Vertex AI) ensuring ALL
-       header fields, taxes, and full itemized line-item grids are extracted.
-    3. Optional QR Cross-Verification: If an e-invoice QR code is present, it validates
-       and enriches the AI extraction with the government IRN and verified totals without
-       skipping detailed line items.
+    2. Primary Local OCR / Text Extraction:
+       - PyMuPDF extracts digital text from born-digital PDFs (0ms, 0 tokens).
+       - PaddleOCR extracts text lines and bounding boxes from images/scans on local CPU.
+    3. Primary Text-LLM Structuring:
+       - Sends pure extracted text to the LLM (ultra-low token cost, <500ms latency).
+    4. Multimodal Vision Fallback (LAST RESORT):
+       - Only invoked if local OCR yields empty text or fails completely.
+    5. Optional QR Cross-Verification & Enrichment.
     """
 
     def __init__(self):
         self.doc_processor = DocumentProcessor()
         self.gemini_extractor = GeminiExtractor()
+        self.paddle_extractor = PaddleOCRExtractor()
 
     def process_and_extract(self, filename: str, file_bytes: bytes) -> ExtractionResponse:
         """
-        Executes document preprocessing and full multimodal AI extraction.
-        Optional QR code is used to cross-verify and enrich results.
+        Executes local OCR/text extraction first, text-LLM structuring, and falls back to multimodal vision only as a last resort.
         """
         # Step 1: Document Preprocessing (Format check, deskewing, optional QR detection)
         doc_result: DocumentProcessingResult = self.doc_processor.process(filename, file_bytes)
@@ -51,18 +55,46 @@ class ExtractionService:
                 error_message=doc_result.error_message
             )
 
-        # Step 2: Full Multimodal AI Extraction (Gemini / Vertex AI)
-        # Always runs to capture all required requirements: supplier, buyer, invoice metadata,
-        # complete itemized line items, tax breakdowns, and totals.
-        # Pass OpenCV deskewed/cleaned image bytes if available
-        payload_bytes = doc_result.preprocessed_bytes if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else file_bytes
-        payload_mime = "image/png" if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else doc_result.mime_type
+        # Step 2: Primary Local OCR / Text Extraction Tier
+        extracted_text: Optional[str] = None
+        bounding_boxes = []
 
-        ai_response: ExtractionResponse = self.gemini_extractor.extract_invoice(
-            file_bytes=payload_bytes,
-            mime_type=payload_mime,
-            filename=filename
-        )
+        # Case 2A: Born-digital PDF -> use native high-precision digital text layer
+        if doc_result.digital_text_extracted and len(doc_result.digital_text_extracted.strip()) > 30:
+            extracted_text = doc_result.digital_text_extracted
+            logger.info(f"Using direct digital PDF text layer for '{filename}' ({len(extracted_text)} chars)")
+
+        # Case 2B: Image or Scanned Document -> run Local PaddleOCR
+        elif doc_result.document_type in ("IMAGE", "SCANNED_PDF") or doc_result.preprocessed_bytes:
+            ocr_bytes = doc_result.preprocessed_bytes if doc_result.preprocessed_bytes else file_bytes
+            paddle_text, boxes, conf = self.paddle_extractor.extract_text(ocr_bytes)
+            if paddle_text and len(paddle_text.strip()) > 20:
+                extracted_text = paddle_text
+                bounding_boxes = boxes
+                logger.info(f"Local PaddleOCR extracted {len(boxes)} text boxes (conf={conf:.2f}) for '{filename}'")
+
+        # Step 3: Text-LLM Structuring (Primary Engine)
+        ai_response: Optional[ExtractionResponse] = None
+        if extracted_text:
+            ai_response = self.gemini_extractor.extract_from_text(
+                text=extracted_text,
+                filename=filename
+            )
+
+        # Step 4: Multimodal Vision Fallback (LAST RESORT)
+        # Invoked ONLY if local text extraction was empty or text-LLM failed completely
+        if not ai_response or not ai_response.success or not ai_response.invoice:
+            logger.warning(
+                f"Local text extraction unavailable or empty for '{filename}'. "
+                "Falling back to Multimodal Vision as LAST RESORT..."
+            )
+            payload_bytes = doc_result.preprocessed_bytes if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else file_bytes
+            payload_mime = "image/png" if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else doc_result.mime_type
+            ai_response = self.gemini_extractor.extract_invoice(
+                file_bytes=payload_bytes,
+                mime_type=payload_mime,
+                filename=filename
+            )
 
         if not ai_response.success or not ai_response.invoice:
             return ai_response

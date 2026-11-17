@@ -123,3 +123,40 @@ class TestPipelineBugFixes:
         assert res.success is True
         assert "API Quota/Auth Notice" in (res.error_message or "")
         assert res.invoice is not None
+
+    def test_foreign_tax_id_accepted_for_non_inr(self):
+        """Verifies that non-INR invoices with valid international tax/VAT IDs are accepted."""
+        # US Invoice with Tax ID 975-86-1582
+        us_inv = CanonicalInvoice(
+            supplier=SupplierDetails(name="US Vendor LLC", gstin="975-86-1582"),
+            metadata=InvoiceMetadata(invoice_number="US-001", currency="USD"),
+            subtotal=100.0,
+            tax=TaxBreakdown(igst=10.0),
+            grand_total=110.0
+        )
+        is_valid, errors = GeminiExtractor.validate_arithmetic(us_inv)
+        assert is_valid is True, f"Expected US invoice to pass validation, got errors: {errors}"
+        assert len(errors) == 0
+
+        # Namibian Invoice with VAT Reg 4704177085
+        na_inv = CanonicalInvoice(
+            supplier=SupplierDetails(name="Namibian Supply CC", gstin="4704177085"),
+            metadata=InvoiceMetadata(invoice_number="NA-001", currency="NAD"),
+            subtotal=100.0,
+            tax=TaxBreakdown(igst=15.0),
+            grand_total=115.0
+        )
+        is_valid, errors = GeminiExtractor.validate_arithmetic(na_inv)
+        assert is_valid is True, f"Expected Namibian invoice to pass validation, got errors: {errors}"
+        assert len(errors) == 0
+
+    def test_paddle_ocr_service_initialization(self, sample_image_bytes):
+        """Verifies that PaddleOCRExtractor initializes and extracts from image bytes."""
+        from backend.app.services.paddle_extractor import PaddleOCRExtractor
+        extractor = PaddleOCRExtractor()
+        assert extractor is not None
+        # Verify method runs without crashing
+        text, boxes, conf = extractor.extract_text(sample_image_bytes)
+        assert isinstance(text, str)
+        assert isinstance(boxes, list)
+        assert isinstance(conf, float)
