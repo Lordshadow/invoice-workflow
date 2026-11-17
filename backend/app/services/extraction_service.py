@@ -12,6 +12,7 @@ from backend.app.schemas.invoice import (
 )
 from backend.app.services.document_processor import DocumentProcessor
 from backend.app.services.gemini_extractor import GeminiExtractor
+from backend.app.services.groq_extractor import GroqExtractor
 from backend.app.services.paddle_extractor import PaddleOCRExtractor
 
 logger = logging.getLogger("invoice_processor.orchestrator")
@@ -33,6 +34,7 @@ class ExtractionService:
 
     def __init__(self):
         self.doc_processor = DocumentProcessor()
+        self.groq_extractor = GroqExtractor()
         self.gemini_extractor = GeminiExtractor()
         self.paddle_extractor = PaddleOCRExtractor()
 
@@ -76,10 +78,21 @@ class ExtractionService:
         # Step 3: Text-LLM Structuring (Primary Engine)
         ai_response: Optional[ExtractionResponse] = None
         if extracted_text:
-            ai_response = self.gemini_extractor.extract_from_text(
-                text=extracted_text,
-                filename=filename
-            )
+            # 3A: Try Groq LPU first if active (ultra-fast, low-token)
+            if self.groq_extractor.is_active:
+                logger.info(f"Invoking Groq LPU ({self.groq_extractor.primary_model}) for '{filename}' text extraction")
+                ai_response = self.groq_extractor.extract_from_text(
+                    text=extracted_text,
+                    filename=filename
+                )
+
+            # 3B: If Groq inactive or returned failure, try Gemini Text-LLM
+            if not ai_response or not ai_response.success or not ai_response.invoice:
+                logger.info(f"Invoking Gemini Text-LLM for '{filename}' text extraction")
+                ai_response = self.gemini_extractor.extract_from_text(
+                    text=extracted_text,
+                    filename=filename
+                )
 
         # Step 4: Multimodal Vision Fallback (LAST RESORT)
         # Invoked ONLY if local text extraction was empty or text-LLM failed completely

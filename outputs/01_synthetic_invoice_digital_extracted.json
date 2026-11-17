@@ -1,54 +1,92 @@
 {
   "file_name": "01_synthetic_invoice_digital.docx",
-  "provider": "local_ocr_fallback",
-  "model_name": "deterministic_text_parser",
-  "latency_ms": 522.01,
-  "validation_passed": true,
-  "validation_errors": [],
+  "provider": "groq_qwen_qwen3.8-27b",
+  "model_name": "qwen/qwen3.8-27b",
+  "latency_ms": 2248.2,
+  "validation_passed": false,
+  "validation_errors": [
+    "Line items total (2470.00) does not match Grand Total (2914.60)"
+  ],
   "extracted_invoice": {
     "supplier": {
-      "name": "ABC INDUSTRIAL DISTRIBUTORS PVT LTD",
-      "gstin": "33AABCT1234F1Z9",
-      "address": "Extracted via Local OCR",
+      "name": "BLUE PEAK ELECTRICAL SUPPLIES",
+      "gstin": null,
+      "address": "Unit 14, Cedar Works, Kothrud, Pune, Maharashtra 411038",
       "phone": null,
       "email": null
     },
     "buyer": {
-      "name": "Accounts Payable / Target Client",
+      "name": "Juniper Desk Systems",
       "gstin": null,
-      "address": null
+      "address": "5 Lakeview Lane, Aundh, Pune 411007"
     },
     "metadata": {
-      "invoice_number": "BLUE",
+      "invoice_number": "BP-TEST-2026-041",
       "invoice_date": "2026-11-14",
       "due_date": null,
-      "place_of_supply": null,
+      "place_of_supply": "Maharashtra (27)",
       "currency": "INR"
     },
     "line_items": [
       {
-        "description": "Standard Delivery / Invoice Items (ABC INDUSTRIAL DISTRIBUTORS PVT LTD)",
-        "hsn_code": null,
-        "quantity": 1.0,
-        "unit_price": 5000.0,
+        "description": "Industrial cable ties, UV resistant",
+        "hsn_code": "3926",
+        "quantity": 120.0,
+        "unit_price": 2.5,
         "discount": 0.0,
-        "tax_rate": 18.0,
-        "cgst_amount": 450.0,
-        "sgst_amount": 450.0,
+        "tax_rate": 9.0,
+        "cgst_amount": 13.5,
+        "sgst_amount": 13.5,
         "igst_amount": 0.0,
-        "total_amount": 5900.0
+        "total_amount": 300.0
+      },
+      {
+        "description": "Panel label sheets, waterproof",
+        "hsn_code": "4821",
+        "quantity": 40.0,
+        "unit_price": 18.0,
+        "discount": 0.0,
+        "tax_rate": 9.0,
+        "cgst_amount": 32.4,
+        "sgst_amount": 32.4,
+        "igst_amount": 0.0,
+        "total_amount": 720.0
+      },
+      {
+        "description": "DIN rail end stops, pair",
+        "hsn_code": "8538",
+        "quantity": 25.0,
+        "unit_price": 24.0,
+        "discount": 0.0,
+        "tax_rate": 9.0,
+        "cgst_amount": 27.0,
+        "sgst_amount": 27.0,
+        "igst_amount": 0.0,
+        "total_amount": 600.0
+      },
+      {
+        "description": "Cable duct, slotted 1 m",
+        "hsn_code": "3925",
+        "quantity": 10.0,
+        "unit_price": 85.0,
+        "discount": 0.0,
+        "tax_rate": 9.0,
+        "cgst_amount": 38.25,
+        "sgst_amount": 38.25,
+        "igst_amount": 0.0,
+        "total_amount": 850.0
       }
     ],
-    "subtotal": 5000.0,
+    "subtotal": 2470.0,
     "tax": {
-      "cgst": 450.0,
-      "sgst": 450.0,
+      "cgst": 222.3,
+      "sgst": 222.3,
       "igst": 0.0,
       "cess": 0.0
     },
     "round_off": 0.0,
-    "grand_total": 5900.0,
+    "grand_total": 2914.6,
     "confidence_score": 0.95,
-    "extraction_notes": "Extracted via Local OCR Parser (Cloud LLM Quota Fallback)"
+    "extraction_notes": "Line item taxes calculated based on 9% CGST/SGST rate applied to taxable value. Supplier and Buyer GSTINs are explicitly marked as synthetic/not valid in source text."
   }
 }

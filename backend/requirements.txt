@@ -14,3 +14,4 @@ paddleocr>=3.7.0
 pytest>=8.3.0
 httpx>=0.28.0
 python-multipart>=0.0.12
+groq>=1.7.0

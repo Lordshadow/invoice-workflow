@@ -20,6 +20,9 @@ async def get_extraction_status():
         "status": "online",
         "active_mode": service.gemini_extractor.mode,
         "model_name": service.gemini_extractor.model_name,
+        "groq_active": service.groq_extractor.is_active,
+        "groq_model": service.groq_extractor.primary_model,
+        "groq_api_key_configured": bool(settings.GROQ_API_KEY),
         "vertex_ai_enabled": settings.USE_VERTEX_AI,
         "gcp_project_id": settings.GCP_PROJECT_ID or None,
         "gemini_api_key_configured": bool(settings.GEMINI_API_KEY)

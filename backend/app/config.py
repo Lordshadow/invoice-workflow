@@ -46,6 +46,15 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("GEMINI_MODEL_NAME", "gemini-3.7-flash").strip()
     )
 
+    # 4. Groq API Configuration (Ultra-fast, Low-Token LPU Inference)
+    GROQ_API_KEY: str = Field(default_factory=lambda: os.getenv("GROQ_API_KEY", "").strip())
+    GROQ_MODEL_NAME: str = Field(
+        default_factory=lambda: os.getenv("GROQ_MODEL_NAME", "qwen/qwen3.8-27b").strip()
+    )
+    GROQ_FALLBACK_MODEL: str = Field(
+        default_factory=lambda: os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-20b").strip()
+    )
+
 
 settings = Settings()
 
