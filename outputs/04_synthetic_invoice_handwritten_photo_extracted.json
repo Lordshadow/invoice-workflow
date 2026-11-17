@@ -1,25 +1,25 @@
 {
   "file_name": "04_synthetic_invoice_handwritten_photo.jpg",
-  "provider": "local_ocr_fallback",
-  "model_name": "deterministic_text_parser",
-  "latency_ms": 0.0,
+  "provider": "groq_qwen_qwen3.8-27b",
+  "model_name": "qwen/qwen3.8-27b",
+  "latency_ms": 1854.39,
   "validation_passed": true,
   "validation_errors": [],
   "extracted_invoice": {
     "supplier": {
       "name": "RIVERBEND PACKING CO.",
-      "gstin": "33AABCT1234F1Z9",
-      "address": "Extracted via Local OCR",
+      "gstin": null,
+      "address": "Mysuru, Karnataka",
       "phone": null,
       "email": null
     },
     "buyer": {
-      "name": "Accounts Payable / Target Client",
+      "name": "Paper Kite Studio",
       "gstin": null,
-      "address": null
+      "address": "4 Garden Walk, Bengaluru"
     },
     "metadata": {
-      "invoice_number": "OICE",
+      "invoice_number": "RB-TEST-092",
       "invoice_date": "2026-11-15",
       "due_date": null,
       "place_of_supply": null,
@@ -27,28 +27,52 @@
     },
     "line_items": [
       {
-        "description": "Standard Delivery / Invoice Items (RIVERBEND PACKING CO.)",
+        "description": "Packing tape, 48 mm",
         "hsn_code": null,
-        "quantity": 1.0,
-        "unit_price": 1194.92,
+        "quantity": 6.0,
+        "unit_price": 55.0,
         "discount": 0.0,
-        "tax_rate": 18.0,
-        "cgst_amount": 107.54,
-        "sgst_amount": 107.54,
-        "igst_amount": 0.0,
-        "total_amount": 1410.0
+        "tax_rate": 5.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 16.5,
+        "total_amount": 346.5
+      },
+      {
+        "description": "Kraft mailer, medium",
+        "hsn_code": null,
+        "quantity": 20.0,
+        "unit_price": 18.0,
+        "discount": 0.0,
+        "tax_rate": 5.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 18.0,
+        "total_amount": 378.0
+      },
+      {
+        "description": "Corrugated cartons, 5-ply",
+        "hsn_code": null,
+        "quantity": 10.0,
+        "unit_price": 72.0,
+        "discount": 0.0,
+        "tax_rate": 5.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 36.0,
+        "total_amount": 756.0
       }
     ],
-    "subtotal": 1194.92,
+    "subtotal": 1410.0,
     "tax": {
-      "cgst": 107.54,
-      "sgst": 107.54,
-      "igst": 0.0,
+      "cgst": 0.0,
+      "sgst": 0.0,
+      "igst": 70.5,
       "cess": 0.0
     },
     "round_off": 0.0,
-    "grand_total": 1410.0,
+    "grand_total": 1480.5,
     "confidence_score": 0.95,
-    "extraction_notes": "Extracted via Local OCR Parser (Cloud LLM Quota Fallback)"
+    "extraction_notes": "Synthetic test data. IGST applied at 5% on subtotal. Line item totals include tax."
   }
 }

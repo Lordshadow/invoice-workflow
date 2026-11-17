@@ -1,22 +1,22 @@
 {
   "file_name": "batch1-0500.jpg",
-  "provider": "local_ocr_fallback",
-  "model_name": "deterministic_text_parser",
-  "latency_ms": 0.0,
+  "provider": "groq_qwen_qwen3.8-27b",
+  "model_name": "qwen/qwen3.8-27b",
+  "latency_ms": 2586.35,
   "validation_passed": true,
   "validation_errors": [],
   "extracted_invoice": {
     "supplier": {
-      "name": "Date of issue:",
-      "gstin": "975-86-1582",
-      "address": "Extracted via Local OCR",
+      "name": "Carrillo, Lara and Hooper",
+      "gstin": null,
+      "address": "85942 Tucker Plains Apt. 982, FPO AE 13513",
       "phone": null,
       "email": null
     },
     "buyer": {
-      "name": "Accounts Payable / Target Client",
+      "name": "Ellis and Sons",
       "gstin": null,
-      "address": null
+      "address": "Hernandezchester,SC88596"
     },
     "metadata": {
       "invoice_number": "34476404",
@@ -27,28 +27,64 @@
     },
     "line_items": [
       {
-        "description": "Standard Delivery / Invoice Items (Date of issue:)",
+        "description": "Pack 3 Artificial Sheepskin Seat Pads 30cm Round Pad Floor Area Carpets",
         "hsn_code": null,
         "quantity": 1.0,
-        "unit_price": 5000.0,
+        "unit_price": 14.22,
         "discount": 0.0,
         "tax_rate": 10.0,
         "cgst_amount": 0.0,
         "sgst_amount": 0.0,
-        "igst_amount": 900.0,
-        "total_amount": 5900.0
+        "igst_amount": 1.42,
+        "total_amount": 15.64
+      },
+      {
+        "description": "Soft Sheepskin Mat Faux Fur Rug Small Shaggy Non Slip Floor Carpet Yellow",
+        "hsn_code": null,
+        "quantity": 2.0,
+        "unit_price": 8.4,
+        "discount": 0.0,
+        "tax_rate": 10.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 1.68,
+        "total_amount": 18.48
+      },
+      {
+        "description": "Chindi Rugs Carpet New Design Bohemian Garden Yoga Mat Indian Kilim Coverlet",
+        "hsn_code": null,
+        "quantity": 4.0,
+        "unit_price": 29.99,
+        "discount": 0.0,
+        "tax_rate": 10.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 11.996,
+        "total_amount": 131.96
+      },
+      {
+        "description": "YILONG 9'x12' Oversize Handmade Silk Carpet Antistatic Luxurious Area Rug TJ107A",
+        "hsn_code": null,
+        "quantity": 4.0,
+        "unit_price": 7800.0,
+        "discount": 0.0,
+        "tax_rate": 10.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 3120.0,
+        "total_amount": 34320.0
       }
     ],
-    "subtotal": 5000.0,
+    "subtotal": 31350.98,
     "tax": {
       "cgst": 0.0,
       "sgst": 0.0,
-      "igst": 900.0,
-      "cess": 0.0
+      "igst": 0.0,
+      "cess": 3135.1
     },
     "round_off": 0.0,
-    "grand_total": 5900.0,
+    "grand_total": 34486.08,
     "confidence_score": 0.95,
-    "extraction_notes": "Extracted via Local OCR Parser (Cloud LLM Quota Fallback)"
+    "extraction_notes": "Currency inferred as USD from symbol '$'. Tax mapped to 'cess' field as CGST/SGST/IGST are not applicable for this jurisdiction (VAT). Line item 4 unit price interpreted as 7800.00 based on context."
   }
 }

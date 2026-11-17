@@ -2,11 +2,9 @@
   "file_name": "01_synthetic_invoice_digital.docx",
   "provider": "groq_qwen_qwen3.8-27b",
   "model_name": "qwen/qwen3.8-27b",
-  "latency_ms": 2248.2,
-  "validation_passed": false,
-  "validation_errors": [
-    "Line items total (2470.00) does not match Grand Total (2914.60)"
-  ],
+  "latency_ms": 2272.9,
+  "validation_passed": true,
+  "validation_errors": [],
   "extracted_invoice": {
     "supplier": {
       "name": "BLUE PEAK ELECTRICAL SUPPLIES",
@@ -87,6 +85,6 @@
     "round_off": 0.0,
     "grand_total": 2914.6,
     "confidence_score": 0.95,
-    "extraction_notes": "Line item taxes calculated based on 9% CGST/SGST rate applied to taxable value. Supplier and Buyer GSTINs are explicitly marked as synthetic/not valid in source text."
+    "extraction_notes": "Line item tax amounts calculated based on taxable value and 9% rate. Supplier and Buyer GSTINs are explicitly marked as synthetic/not GSTIN in source."
   }
 }

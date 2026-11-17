@@ -2,11 +2,9 @@
   "file_name": "02_synthetic_invoice_interstate.pdf",
   "provider": "groq_qwen_qwen3.8-27b",
   "model_name": "qwen/qwen3.8-27b",
-  "latency_ms": 27168.33,
-  "validation_passed": false,
-  "validation_errors": [
-    "Line items total (24330.00) does not match Grand Total (28709.40)"
-  ],
+  "latency_ms": 27286.1,
+  "validation_passed": true,
+  "validation_errors": [],
   "extracted_invoice": {
     "supplier": {
       "name": "ORBITAL OFFICE TECHNOLOGY",
@@ -87,6 +85,6 @@
     "round_off": 0.0,
     "grand_total": 28709.4,
     "confidence_score": 0.95,
-    "extraction_notes": "Synthetic test data. GSTINs are synthetic labels. Due date calculated as invoice date + 15 days."
+    "extraction_notes": "Synthetic test data. Line item totals in OCR reflect taxable value only; IGST amounts per line calculated based on 18% rate to match total tax."
   }
 }
