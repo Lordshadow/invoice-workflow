@@ -704,5 +704,35 @@ class TestDatabaseAndLifecycle:
         assert c2.id != c1.id
         assert c2.grand_total == 200.0
 
+    def test_cannot_edit_approved_invoice(self, client, db_session):
+        """Verifies that an approved invoice cannot be edited without re-approval (HTTP 422)."""
+        doc = Document(source="upload", file_name="appr.pdf", file_path="appr.pdf", file_hash="appr_h1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.APPROVED,
+            supplier_name="Approved Vendor",
+            supplier_gstin="33AAACA1234A1Z5",
+            invoice_number="INV-APPR-1",
+            grand_total=100.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        # Attempt to edit approved invoice
+        res = client.put(
+            f"/api/v1/invoices/{inv.id}",
+            json={
+                "actor": "accountant_jane",
+                "expected_version": 1,
+                "grand_total": 999.0
+            }
+        )
+        assert res.status_code == 422
+        assert "Cannot edit invoice in state 'APPROVED'" in res.json()["detail"]
+
 
 

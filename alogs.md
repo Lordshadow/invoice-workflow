@@ -490,3 +490,24 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Full automated pytest suite executed: **21 passed in lifecycle suite (100%), 57 passed project-wide**.
   - Status: PASS.
+
+
+### [2026-11-17 17:55:00 +05:30] Phase 2 Bug-in-Bug Audit: Accounting Immutability & Input Normalization
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Lifecycle State Governance & API Hardening
+- **Files Modified / Created**:
+  - `backend/app/routers/invoices.py` (Modified):
+    - Added guard in `PUT /api/v1/invoices/{id}` disallowing edits on `InvoiceStatus.APPROVED` (returns HTTP 422). Ensures once a checker approves financial numbers, makers cannot silently alter figures or line items without formal rejection/re-review.
+    - Normalized `supplier_gstin` to uppercase and stripped (`.strip().upper()`) across both ingestion and human correction update flows, eliminating case-sensitive query divergence.
+    - Normalized `invoice_number` by stripping whitespace on ingestion and human correction.
+    - Guaranteed dict type safety when deserializing `AuditLog.changes_json` (`changes = parsed if isinstance(parsed, dict) else {"raw": parsed}`), preventing Pydantic `ValidationError` in `AuditLogDTO`.
+  - `backend/tests/test_database_and_lifecycle.py` (Modified):
+    - Added automated test `test_cannot_edit_approved_invoice` verifying HTTP 422 rejection when attempting to edit an invoice in `APPROVED` status.
+- **What Changed**:
+    - Addressed three subtle post-fix edge cases: editing approved invoices bypassing Maker-Checker controls, GSTIN casing mismatch causing false query misses, and audit log JSON deserialization schema fragility.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "is there any bugs in the fixed bugs" — ensuring enterprise-grade accounting immutability and complete resilience across all bug fixes.
+- **QA & Verification Status**:
+  - Executed `test_database_and_lifecycle.py`: **22 passed, 0 failed** (100% pass rate).
+  - Status: PASS.

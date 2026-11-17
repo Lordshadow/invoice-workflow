@@ -144,9 +144,9 @@ async def process_invoice(
     ext_res = extraction_service.process_and_extract(clean_filename, file_bytes)
 
     inv_model = ext_res.invoice
-    supplier_name = inv_model.supplier.name if (inv_model and inv_model.supplier) else "Unknown Supplier"
-    supplier_gstin = inv_model.supplier.gstin if (inv_model and inv_model.supplier) else None
-    inv_number = inv_model.metadata.invoice_number if (inv_model and inv_model.metadata) else None
+    supplier_name = inv_model.supplier.name.strip() if (inv_model and inv_model.supplier and inv_model.supplier.name) else "Unknown Supplier"
+    supplier_gstin = inv_model.supplier.gstin.strip().upper() if (inv_model and inv_model.supplier and inv_model.supplier.gstin) else None
+    inv_number = inv_model.metadata.invoice_number.strip() if (inv_model and inv_model.metadata and inv_model.metadata.invoice_number) else None
 
     # 5. Layer 2 Business Identity Deduplication Check
     dup_type, existing_business_dup = DeduplicationService.check_business_duplicate(
@@ -348,9 +348,10 @@ def get_invoice(invoice_id: str, db: Session = Depends(get_db)):
         changes = None
         if a.changes_json:
             try:
-                changes = json.loads(a.changes_json)
+                parsed = json.loads(a.changes_json)
+                changes = parsed if isinstance(parsed, dict) else {"raw": parsed}
             except Exception:
-                pass
+                changes = {"raw": a.changes_json}
         audit_logs.append(
             AuditLogDTO(
                 id=a.id,
@@ -507,10 +508,10 @@ def update_invoice(
     if not inv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
 
-    if inv.status in (InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED):
+    if inv.status in (InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Cannot edit invoice in terminal state '{inv.status.value}'."
+            detail=f"Cannot edit invoice in state '{inv.status.value}'. Only invoices in pending review states (PENDING_APPROVAL, PENDING_CORRECTION, DUPLICATE_INVESTIGATION) can be edited."
         )
 
     # OCC check
@@ -546,6 +547,10 @@ def update_invoice(
 
     for field_name, new_val in field_mappings:
         if new_val is not None:
+            if field_name == "supplier_gstin" and isinstance(new_val, str) and new_val.strip():
+                new_val = new_val.strip().upper()
+            elif field_name == "invoice_number" and isinstance(new_val, str) and new_val.strip():
+                new_val = new_val.strip()
             old_val = getattr(inv, field_name)
             if old_val != new_val:
                 changes[field_name] = {"old": old_val, "new": new_val}
