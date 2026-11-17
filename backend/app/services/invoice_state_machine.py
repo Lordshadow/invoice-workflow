@@ -52,6 +52,7 @@ class InvoiceStateMachine:
         ],
         InvoiceStatus.VALIDATED: [
             InvoiceStatus.PENDING_APPROVAL,
+            InvoiceStatus.APPROVED,  # Allowed for straight-through processing (STP)
             InvoiceStatus.PENDING_CORRECTION,
             InvoiceStatus.DUPLICATE_INVESTIGATION,
             InvoiceStatus.REJECTED,

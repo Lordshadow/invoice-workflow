@@ -55,7 +55,18 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("TARGET_DATABASE_URL", "sqlite:///./data/target_company.db")
     )
 
-    # 4. Groq API Configuration (Ultra-fast, Low-Token LPU Inference)
+    # 4. Straight-Through Processing (STP) & Escalation Settings
+    STP_DEFAULT_ENABLED: bool = Field(
+        default_factory=lambda: os.getenv("STP_DEFAULT_ENABLED", "false").lower() in ("true", "1", "yes")
+    )
+    STP_MIN_CONFIDENCE_THRESHOLD: float = Field(
+        default_factory=lambda: float(os.getenv("STP_MIN_CONFIDENCE_THRESHOLD", "0.85"))
+    )
+    STP_MAX_AMOUNT_LIMIT: float = Field(
+        default_factory=lambda: float(os.getenv("STP_MAX_AMOUNT_LIMIT", "100000.0"))
+    )
+
+    # 5. Groq API Configuration (Ultra-fast, Low-Token LPU Inference)
     GROQ_API_KEY: str = Field(default_factory=lambda: os.getenv("GROQ_API_KEY", "").strip())
     GROQ_MODEL_NAME: str = Field(
         default_factory=lambda: os.getenv("GROQ_MODEL_NAME", "qwen/qwen3.8-27b").strip()

@@ -511,3 +511,36 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Executed `test_database_and_lifecycle.py`: **22 passed, 0 failed** (100% pass rate).
   - Status: PASS.
+
+
+### [2026-11-17 18:25:00 +05:30] Phase 3: Straight-Through Processing (STP) & Human-in-the-Loop (HITL) Escalation Engine
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Phase 3 — Autonomous STP Delivery & HITL Escalation Routing
+- **Files Modified / Created**:
+  - `backend/app/config.py` (Modified): Added `STP_DEFAULT_ENABLED`, `STP_MIN_CONFIDENCE_THRESHOLD` (0.85), and `STP_MAX_AMOUNT_LIMIT` (₹100,000.00).
+  - `backend/app/models/invoice.py` (Modified): Added `is_escalated: bool`, `escalation_reason: Optional[str]`, and `escalation_category: Optional[str]` to `Invoice` model.
+  - `backend/app/db/session.py` (Modified): Added defensive SQLite table schema auto-migration in `init_db()` to automatically add newly declared columns to existing dev/test databases without table dropping.
+  - `backend/app/services/invoice_state_machine.py` (Modified): Permitted direct transition `VALIDATED -> APPROVED` for automated STP approvals.
+  - `backend/app/services/escalation_service.py` (Created):
+    - Implemented `EscalationService.evaluate()` enforcing strict multi-criteria evaluation (Duplicate detection, Arithmetic & GST validation, Mandatory headers, Line item count, Confidence threshold >= 0.85, High-value threshold <= ₹100,000).
+    - Implemented `manual_escalate()` and `resolve_escalation()` with full audit trail logging.
+    - Defined `EscalationCategory` enum (`MATH_MISMATCH`, `DUPLICATE_SUSPECTED`, `LOW_CONFIDENCE`, `MISSING_FIELDS`, `HIGH_VALUE_AUDIT`, `MANUAL_ESCALATION`).
+  - `backend/app/schemas/invoice_api.py` (Modified):
+    - Added `is_escalated`, `escalation_reason`, `escalation_category` to `InvoiceSummaryDTO`, `InvoiceDetailDTO`, and `ProcessInvoiceResponse`.
+    - Added `delivered_to_target: bool` to `ProcessInvoiceResponse`.
+    - Added `EscalationStatsDTO`, `ManualEscalationRequest`, and `DeEscalationRequest`.
+  - `backend/app/routers/invoices.py` (Modified):
+    - Updated `POST /api/v1/invoices/process` to support `enable_stp` Form parameter. Clean invoices automatically approve and commit directly to the Target Company ERP database (`status: DELIVERED`).
+    - Added `GET /api/v1/invoices/escalated` supporting category and status filtering for Human-in-the-Loop queues.
+    - Added `GET /api/v1/invoices/escalation-stats` reporting real-time STP rate % and category breakdown.
+    - Added `POST /api/v1/invoices/{id}/escalate` and `POST /api/v1/invoices/{id}/de-escalate`.
+    - Updated `PUT /api/v1/invoices/{id}` to automatically clear math/fields escalations when human corrections pass validation.
+  - `backend/tests/test_escalation_and_stp.py` (Created): Comprehensive 12-test suite testing clean STP delivery, duplicate escalation, math error escalation, low confidence escalation, high value audit mandate, API endpoints, and resolution workflows.
+- **What Changed**:
+  - Implemented the complete Straight-Through Processing (STP) and Human-in-the-Loop (HITL) routing engine. Invoices with 100% verified math and high confidence auto-deliver straight to Target DB, while escalated cases route to the human review queue.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "ok lets go to next phase , make sure to not create any new bugs and also , test the module as soon as it created and make sure the intergrity of the project, go one by one, human in loop need to be forescalated cases".
+- **QA & Verification Status**:
+  - Executed `test_escalation_and_stp.py`: **12 passed, 0 failed** (100% pass rate).
+  - Status: PASS.

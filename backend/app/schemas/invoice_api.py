@@ -58,6 +58,9 @@ class InvoiceSummaryDTO(BaseModel):
     grand_total: float = 0.0
     confidence_score: float = 1.0
     is_valid: bool = True
+    is_escalated: bool = False
+    escalation_reason: Optional[str] = None
+    escalation_category: Optional[str] = None
     version: int = 1
     created_at: datetime
 
@@ -89,6 +92,9 @@ class InvoiceDetailDTO(BaseModel):
     grand_total: float = 0.0
     confidence_score: float = 1.0
     is_valid: bool = True
+    is_escalated: bool = False
+    escalation_reason: Optional[str] = None
+    escalation_category: Optional[str] = None
     validation_errors: List[str] = Field(default_factory=list)
     extraction_notes: Optional[str] = None
     version: int = 1
@@ -150,7 +156,31 @@ class ProcessInvoiceResponse(BaseModel):
     validation_errors: List[str] = Field(default_factory=list)
     grand_total: float = 0.0
     currency: str = "INR"
+    is_escalated: bool = False
+    escalation_reason: Optional[str] = None
+    escalation_category: Optional[str] = None
+    delivered_to_target: bool = False
     message: str
+
+
+class EscalationStatsDTO(BaseModel):
+    total_invoices: int
+    escalated_count: int
+    clean_count: int
+    delivered_count: int
+    stp_rate_percentage: float
+    category_breakdown: Dict[str, int] = Field(default_factory=dict)
+
+
+class ManualEscalationRequest(BaseModel):
+    actor: str = Field(description="Username or user ID of accountant/supervisor requesting escalation")
+    reason: str = Field(description="Explanation or rationale for escalating the invoice")
+    category: str = Field(default="MANUAL_ESCALATION", description="Escalation category")
+
+
+class DeEscalationRequest(BaseModel):
+    actor: str = Field(description="Username or user ID of supervisor de-escalating")
+    notes: Optional[str] = Field(default=None, description="Resolution notes")
 
 
 class CompanyInvoiceDTO(BaseModel):

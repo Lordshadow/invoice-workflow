@@ -89,6 +89,11 @@ class Invoice(Base):
     validation_errors: Mapped[Optional[str]] = mapped_column(Text, comment="JSON array of validation error strings")
     extraction_notes: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Human-in-the-Loop (HITL) & Escalation Management
+    is_escalated: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    escalation_reason: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    escalation_category: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+
     # Optimistic Concurrency Control (OCC)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 

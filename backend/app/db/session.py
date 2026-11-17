@@ -62,6 +62,22 @@ def init_db():
     import backend.app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
     TargetBase.metadata.create_all(bind=target_engine)
+
+    # Defensive schema migration for newly added columns in SQLite
+    if is_sqlite_primary:
+        with engine.connect() as conn:
+            cursor = conn.connection.cursor()
+            cursor.execute("PRAGMA table_info(invoices)")
+            existing_cols = {row[1] for row in cursor.fetchall()}
+            if "is_escalated" not in existing_cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN is_escalated BOOLEAN DEFAULT 0")
+            if "escalation_reason" not in existing_cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN escalation_reason VARCHAR(255)")
+            if "escalation_category" not in existing_cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN escalation_category VARCHAR(50)")
+            conn.connection.commit()
+            cursor.close()
+
     logger.info("Database schemas initialized successfully.")
 
 

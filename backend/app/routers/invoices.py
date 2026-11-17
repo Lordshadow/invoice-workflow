@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from backend.app.config import settings
@@ -24,6 +24,8 @@ from backend.app.models.target_company import CompanyInvoice
 from backend.app.schemas.invoice_api import (
     AuditLogDTO,
     CompanyInvoiceDTO,
+    DeEscalationRequest,
+    EscalationStatsDTO,
     ExtractionLogDTO,
     InvoiceApprovalRequest,
     InvoiceDetailDTO,
@@ -31,6 +33,7 @@ from backend.app.schemas.invoice_api import (
     InvoiceSummaryDTO,
     InvoiceUpdateRequest,
     LineItemDTO,
+    ManualEscalationRequest,
     ProcessInvoiceResponse,
 )
 from backend.app.schemas.invoice import (
@@ -41,6 +44,7 @@ from backend.app.schemas.invoice import (
     SupplierDetails,
     TaxBreakdown,
 )
+from backend.app.services.escalation_service import EscalationCategory, EscalationService
 from backend.app.services.invoice_validator import InvoiceValidator
 from backend.app.services.deduplication_service import (
     DeduplicationService,
@@ -70,7 +74,9 @@ extraction_service = ExtractionService()
 async def process_invoice(
     file: UploadFile = File(..., description="Invoice file (PDF, JPEG, PNG, WEBP, DOCX)"),
     source: str = Form(default="upload", description="Intake source (upload, whatsapp, email)"),
+    enable_stp: Optional[bool] = Form(default=None, description="Enable automated straight-through processing for 100% clean invoices"),
     db: Session = Depends(get_db),
+    target_db: Session = Depends(get_target_db),
 ):
     """
     Full lifecycle processing:
@@ -79,7 +85,9 @@ async def process_invoice(
     3. Document intake and storage registration.
     4. AI / OCR Extraction & Centralized Validation.
     5. Layer 2 Deduplication (Business identity: Supplier GSTIN + Invoice Number).
-    6. ACID transaction saving Document, Invoice, Line Items, Extraction Log, and Audit Trail.
+    6. Intelligent Escalation & Straight-Through Processing (STP) Evaluation.
+    7. ACID transaction saving Document, Invoice, Line Items, Extraction Log, and Audit Trail.
+    8. If STP qualified: automatically commits to Target DB and marks DELIVERED.
     """
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must have a valid filename.")
@@ -120,6 +128,10 @@ async def process_invoice(
             validation_errors=val_errors,
             grand_total=existing_inv.grand_total if existing_inv else 0.0,
             currency=existing_inv.currency if existing_inv else "INR",
+            is_escalated=existing_inv.is_escalated if existing_inv else False,
+            escalation_reason=existing_inv.escalation_reason if existing_inv else None,
+            escalation_category=existing_inv.escalation_category if existing_inv else None,
+            delivered_to_target=(existing_inv.status == InvoiceStatus.DELIVERED) if existing_inv else False,
             message=f"Duplicate file detected: Document already exists as ID {existing_doc.id}."
         )
 
@@ -157,15 +169,17 @@ async def process_invoice(
         supplier_name=supplier_name,
     )
 
-    # Determine initial state
-    if dup_type != DuplicateType.NONE:
-        initial_status = InvoiceStatus.DUPLICATE_INVESTIGATION
-    elif ext_res.validation_passed:
-        initial_status = InvoiceStatus.PENDING_APPROVAL
-    else:
-        initial_status = InvoiceStatus.PENDING_CORRECTION
+    # 6. Straight-Through Processing (STP) vs Human-in-the-Loop Escalation Decision
+    stp_active = enable_stp if enable_stp is not None else settings.STP_DEFAULT_ENABLED
+    decision = EscalationService.evaluate(
+        invoice_model=inv_model,
+        ext_res=ext_res,
+        dup_type=dup_type,
+        enable_stp=stp_active
+    )
+    initial_status = decision.target_status
 
-    # 6. Save Invoice Record in ACID transaction
+    # 7. Save Invoice Record in ACID transaction
     db_invoice = Invoice(
         document_id=doc.id,
         status=initial_status,
@@ -191,6 +205,9 @@ async def process_invoice(
         is_valid=ext_res.validation_passed,
         validation_errors=json.dumps(ext_res.validation_errors),
         extraction_notes=inv_model.extraction_notes if inv_model else None,
+        is_escalated=decision.is_escalated,
+        escalation_reason=decision.escalation_reason,
+        escalation_category=decision.escalation_category,
         version=1
     )
     db.add(db_invoice)
@@ -229,18 +246,54 @@ async def process_invoice(
     audit = AuditLog(
         entity_type="invoice",
         entity_id=db_invoice.id,
-        actor="system",
-        action="INVOICE_INGESTED",
+        actor="system_stp" if decision.is_stp_eligible else "system",
+        action="STP_AUTO_APPROVED" if decision.is_stp_eligible else ("INVOICE_ESCALATED" if decision.is_escalated else "INVOICE_INGESTED"),
         changes_json=json.dumps({
             "status": initial_status.value,
             "provider": ext_res.provider,
             "validation_passed": ext_res.validation_passed,
-            "duplicate_type": dup_type.value
+            "duplicate_type": dup_type.value,
+            "is_escalated": decision.is_escalated,
+            "escalation_reason": decision.escalation_reason,
+            "escalation_category": decision.escalation_category,
+            "is_stp_eligible": decision.is_stp_eligible,
         })
     )
     db.add(audit)
-
     db.commit()
+
+    # 8. Automated Straight-Through Delivery if STP Qualified
+    delivered_to_target = False
+    if decision.is_stp_eligible and initial_status == InvoiceStatus.APPROVED:
+        try:
+            DeliveryWorker.deliver_invoice(db_invoice.id, db, target_db)
+            db.refresh(db_invoice)
+            delivered_to_target = (db_invoice.status == InvoiceStatus.DELIVERED)
+            audit_stp = AuditLog(
+                entity_type="invoice",
+                entity_id=db_invoice.id,
+                actor="system_stp",
+                action="STP_AUTO_DELIVERED",
+                changes_json=json.dumps({
+                    "grand_total": db_invoice.grand_total,
+                    "target_status": db_invoice.status.value,
+                    "delivered": delivered_to_target
+                })
+            )
+            db.add(audit_stp)
+            db.commit()
+        except Exception as stp_err:
+            logger.error(f"STP auto-delivery failed for invoice {db_invoice.id}: {stp_err}")
+
+    msg = (
+        f"Invoice qualified for Straight-Through Processing (STP) and was delivered to Target DB (ID: {db_invoice.id})."
+        if delivered_to_target
+        else (
+            f"Invoice escalated for Human-in-the-Loop review: {db_invoice.escalation_reason}"
+            if db_invoice.is_escalated
+            else f"Invoice successfully ingested and processed into state '{db_invoice.status.value}'."
+        )
+    )
 
     return ProcessInvoiceResponse(
         success=True,
@@ -248,14 +301,18 @@ async def process_invoice(
         invoice_id=db_invoice.id,
         file_name=doc.file_name,
         file_hash=file_hash,
-        status=initial_status,
+        status=db_invoice.status,
         duplicate_type=dup_type.value,
         duplicate_of_id=existing_business_dup.id if existing_business_dup else None,
         validation_passed=ext_res.validation_passed,
         validation_errors=ext_res.validation_errors,
         grand_total=db_invoice.grand_total,
         currency=db_invoice.currency,
-        message=f"Invoice successfully ingested and processed into state '{initial_status.value}'."
+        is_escalated=db_invoice.is_escalated,
+        escalation_reason=db_invoice.escalation_reason,
+        escalation_category=db_invoice.escalation_category,
+        delivered_to_target=delivered_to_target,
+        message=msg
     )
 
 
@@ -298,11 +355,110 @@ def list_invoices(
                 grand_total=inv.grand_total,
                 confidence_score=inv.confidence_score,
                 is_valid=inv.is_valid,
+                is_escalated=inv.is_escalated,
+                escalation_reason=inv.escalation_reason,
+                escalation_category=inv.escalation_category,
                 version=inv.version,
                 created_at=inv.created_at,
             )
         )
     return results
+
+
+@router.get("/escalated", response_model=List[InvoiceSummaryDTO], summary="List Escalated Invoices for Human-in-the-Loop Review")
+def list_escalated_invoices(
+    category: Optional[str] = Query(None, description="Filter by Escalation Category"),
+    status_filter: Optional[InvoiceStatus] = Query(None, alias="status", description="Filter by status"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieves invoices that require human attention:
+    Invoices where is_escalated is True, or in pending correction / duplicate investigation states.
+    """
+    stmt = (
+        select(Invoice)
+        .options(joinedload(Invoice.document))
+        .where(
+            or_(
+                Invoice.is_escalated == True,
+                Invoice.status.in_([
+                    InvoiceStatus.PENDING_CORRECTION,
+                    InvoiceStatus.DUPLICATE_INVESTIGATION,
+                ])
+            )
+        )
+    )
+    if category:
+        stmt = stmt.where(Invoice.escalation_category == category)
+    if status_filter:
+        stmt = stmt.where(Invoice.status == status_filter)
+
+    stmt = stmt.order_by(desc(Invoice.created_at)).offset(offset).limit(limit)
+    invoices = db.scalars(stmt).all()
+
+    return [
+        InvoiceSummaryDTO(
+            id=inv.id,
+            document_id=inv.document_id,
+            file_name=inv.document.file_name if inv.document else None,
+            status=inv.status,
+            supplier_name=inv.supplier_name,
+            supplier_gstin=inv.supplier_gstin,
+            invoice_number=inv.invoice_number,
+            invoice_date=inv.invoice_date,
+            currency=inv.currency,
+            grand_total=inv.grand_total,
+            confidence_score=inv.confidence_score,
+            is_valid=inv.is_valid,
+            is_escalated=inv.is_escalated,
+            escalation_reason=inv.escalation_reason,
+            escalation_category=inv.escalation_category,
+            version=inv.version,
+            created_at=inv.created_at,
+        )
+        for inv in invoices
+    ]
+
+
+@router.get("/escalation-stats", response_model=EscalationStatsDTO, summary="Get Escalation & STP Processing Metrics")
+def get_escalation_stats(db: Session = Depends(get_db)):
+    """Computes real-time Straight-Through Processing (STP) rate and escalation breakdown."""
+    total_count = db.scalar(select(func.count(Invoice.id))) or 0
+    escalated_count = db.scalar(
+        select(func.count(Invoice.id)).where(
+            or_(
+                Invoice.is_escalated == True,
+                Invoice.status.in_([
+                    InvoiceStatus.PENDING_CORRECTION,
+                    InvoiceStatus.DUPLICATE_INVESTIGATION,
+                ])
+            )
+        )
+    ) or 0
+    delivered_count = db.scalar(
+        select(func.count(Invoice.id)).where(Invoice.status == InvoiceStatus.DELIVERED)
+    ) or 0
+    clean_count = max(0, total_count - escalated_count)
+
+    stp_rate = round((delivered_count / total_count * 100.0), 2) if total_count > 0 else 0.0
+
+    cat_counts = db.execute(
+        select(Invoice.escalation_category, func.count(Invoice.id))
+        .where(Invoice.escalation_category.isnot(None))
+        .group_by(Invoice.escalation_category)
+    ).all()
+    category_breakdown = {str(row[0]): int(row[1]) for row in cat_counts if row[0]}
+
+    return EscalationStatsDTO(
+        total_invoices=total_count,
+        escalated_count=escalated_count,
+        clean_count=clean_count,
+        delivered_count=delivered_count,
+        stp_rate_percentage=stp_rate,
+        category_breakdown=category_breakdown
+    )
 
 
 @router.get("/{invoice_id}", response_model=InvoiceDetailDTO, summary="Get Detailed Invoice Record")
@@ -396,6 +552,9 @@ def get_invoice(invoice_id: str, db: Session = Depends(get_db)):
         grand_total=inv.grand_total,
         confidence_score=inv.confidence_score,
         is_valid=inv.is_valid,
+        is_escalated=inv.is_escalated,
+        escalation_reason=inv.escalation_reason,
+        escalation_category=inv.escalation_category,
         validation_errors=val_errors,
         extraction_notes=inv.extraction_notes,
         version=inv.version,
@@ -631,6 +790,16 @@ def update_invoice(
     inv.is_valid = is_valid
     inv.validation_errors = json.dumps(validation_errors)
 
+    # If re-validation succeeds, clear math/missing fields escalation
+    if is_valid and inv.is_escalated and inv.escalation_category in (
+        EscalationCategory.MATH_MISMATCH.value,
+        EscalationCategory.MISSING_FIELDS.value,
+        EscalationCategory.LOW_CONFIDENCE.value,
+    ):
+        inv.is_escalated = False
+        inv.escalation_reason = None
+        inv.escalation_category = None
+
     # State transition if validation status changed
     old_status = inv.status
     state_transitioned = False
@@ -757,6 +926,55 @@ async def reject_invoice(
             detail=str(err)
         )
 
+    return get_invoice(inv.id, db)
+
+
+@router.post("/{invoice_id}/escalate", response_model=InvoiceDetailDTO, summary="Manually Escalate Invoice for Supervisor Review")
+def manual_escalate_invoice(
+    invoice_id: str,
+    payload: ManualEscalationRequest,
+    db: Session = Depends(get_db)
+):
+    """Manually escalates an invoice to the Human-in-the-Loop review queue with rationale."""
+    inv = db.get(Invoice, invoice_id)
+    if not inv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
+
+    if inv.status in (InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Cannot escalate invoice in terminal state '{inv.status.value}'."
+        )
+
+    EscalationService.manual_escalate(
+        invoice=inv,
+        actor=payload.actor,
+        reason=payload.reason,
+        category=payload.category,
+        db=db
+    )
+    db.commit()
+    return get_invoice(inv.id, db)
+
+
+@router.post("/{invoice_id}/de-escalate", response_model=InvoiceDetailDTO, summary="Resolve Escalation on Invoice")
+def de_escalate_invoice(
+    invoice_id: str,
+    payload: DeEscalationRequest,
+    db: Session = Depends(get_db)
+):
+    """Clears the escalation flag on an invoice after supervisor investigation."""
+    inv = db.get(Invoice, invoice_id)
+    if not inv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
+
+    EscalationService.resolve_escalation(
+        invoice=inv,
+        actor=payload.actor,
+        notes=payload.notes,
+        db=db
+    )
+    db.commit()
     return get_invoice(inv.id, db)
 
 
