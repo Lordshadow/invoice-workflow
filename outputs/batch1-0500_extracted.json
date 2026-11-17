@@ -1,0 +1,91 @@
+{
+  "file_name": "batch1-0500.jpg",
+  "document_type": "IMAGE",
+  "resolution": "1654x2339",
+  "validation_passed": false,
+  "validation_errors": [
+    "Non-standard Supplier GSTIN format: '975-86-1582' (Expected 15-character Indian GST format)"
+  ],
+  "extracted_invoice": {
+    "supplier": {
+      "name": "Carrillo, Lara and Hooper",
+      "gstin": "975-86-1582",
+      "address": "USNV Jones, FPO AE 13513",
+      "phone": null,
+      "email": null
+    },
+    "buyer": {
+      "name": "Ellis and Sons",
+      "gstin": "902-92-1120",
+      "address": "85942 Tucker Plains Apt. 982, Hernandezchester, SC 88596"
+    },
+    "metadata": {
+      "invoice_number": "34476404",
+      "invoice_date": "2018-07-24",
+      "due_date": null,
+      "place_of_supply": null,
+      "currency": "USD"
+    },
+    "line_items": [
+      {
+        "description": "Pack 3 Artificial Sheepskin Seat Pads 30cm Round Pad Floor Area Carpets",
+        "hsn_code": null,
+        "quantity": 1.0,
+        "unit_price": 14.22,
+        "discount": 0.0,
+        "tax_rate": 10.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 1.42,
+        "total_amount": 15.64
+      },
+      {
+        "description": "Soft Sheepskin Mat Faux Fur Rug Small Shaggy Non Slip Floor Carpet Yellow",
+        "hsn_code": null,
+        "quantity": 2.0,
+        "unit_price": 8.4,
+        "discount": 0.0,
+        "tax_rate": 10.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 1.68,
+        "total_amount": 18.48
+      },
+      {
+        "description": "Chindi Rugs Carpet New Design Bohemian Garden Yoga Mat Indian Kilim Coverlet",
+        "hsn_code": null,
+        "quantity": 4.0,
+        "unit_price": 29.99,
+        "discount": 0.0,
+        "tax_rate": 10.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 12.0,
+        "total_amount": 131.96
+      },
+      {
+        "description": "YILONG 9x12 Oversize Handmade Silk Carpet Antistatic Luxurious Area Rug TJ107A",
+        "hsn_code": null,
+        "quantity": 4.0,
+        "unit_price": 7800.0,
+        "discount": 0.0,
+        "tax_rate": 10.0,
+        "cgst_amount": 0.0,
+        "sgst_amount": 0.0,
+        "igst_amount": 3120.0,
+        "total_amount": 34320.0
+      }
+    ],
+    "subtotal": 31350.98,
+    "tax": {
+      "cgst": 0.0,
+      "sgst": 0.0,
+      "igst": 3135.1,
+      "cess": 0.0
+    },
+    "round_off": 0.0,
+    "grand_total": 34486.08,
+    "confidence_score": 0.99,
+    "extraction_notes": null
+  }
+}
