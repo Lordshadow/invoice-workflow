@@ -176,11 +176,13 @@ class ManualEscalationRequest(BaseModel):
     actor: str = Field(description="Username or user ID of accountant/supervisor requesting escalation")
     reason: str = Field(description="Explanation or rationale for escalating the invoice")
     category: str = Field(default="MANUAL_ESCALATION", description="Escalation category")
+    expected_version: Optional[int] = Field(default=None, description="OCC version to prevent race conditions")
 
 
 class DeEscalationRequest(BaseModel):
     actor: str = Field(description="Username or user ID of supervisor de-escalating")
     notes: Optional[str] = Field(default=None, description="Resolution notes")
+    expected_version: Optional[int] = Field(default=None, description="OCC version to prevent race conditions")
 
 
 class CompanyInvoiceDTO(BaseModel):

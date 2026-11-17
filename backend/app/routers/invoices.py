@@ -394,6 +394,9 @@ def list_escalated_invoices(
         stmt = stmt.where(Invoice.escalation_category == category)
     if status_filter:
         stmt = stmt.where(Invoice.status == status_filter)
+    else:
+        # Default to active pending queue, excluding committed/terminal states
+        stmt = stmt.where(Invoice.status.notin_([InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED]))
 
     stmt = stmt.order_by(desc(Invoice.created_at)).offset(offset).limit(limit)
     invoices = db.scalars(stmt).all()
@@ -428,6 +431,7 @@ def get_escalation_stats(db: Session = Depends(get_db)):
     total_count = db.scalar(select(func.count(Invoice.id))) or 0
     escalated_count = db.scalar(
         select(func.count(Invoice.id)).where(
+            Invoice.status.notin_([InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED]),
             or_(
                 Invoice.is_escalated == True,
                 Invoice.status.in_([
@@ -446,7 +450,10 @@ def get_escalation_stats(db: Session = Depends(get_db)):
 
     cat_counts = db.execute(
         select(Invoice.escalation_category, func.count(Invoice.id))
-        .where(Invoice.escalation_category.isnot(None))
+        .where(
+            Invoice.status.notin_([InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED]),
+            Invoice.escalation_category.isnot(None)
+        )
         .group_by(Invoice.escalation_category)
     ).all()
     category_breakdown = {str(row[0]): int(row[1]) for row in cat_counts if row[0]}
@@ -614,6 +621,20 @@ def approve_invoice(
                 expected_version=body.expected_version,
                 db=primary_db
             )
+            # If the invoice was escalated, approval by authorized checker resolves the escalation
+            if inv.is_escalated:
+                inv.is_escalated = False
+                inv.escalation_reason = None
+                inv.escalation_category = None
+                primary_db.add(
+                    AuditLog(
+                        entity_type="invoice",
+                        entity_id=inv.id,
+                        actor=body.actor,
+                        action="ESCALATION_RESOLVED_ON_APPROVAL",
+                        changes_json=json.dumps({"notes": body.notes or "Escalation adjudicated and approved by checker"})
+                    )
+                )
             primary_db.commit()
         except ConcurrencyConflictError as err:
             raise HTTPException(
@@ -940,10 +961,17 @@ def manual_escalate_invoice(
     if not inv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
 
-    if inv.status in (InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED):
+    if inv.status in (InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Cannot escalate invoice in terminal state '{inv.status.value}'."
+            detail=f"Cannot escalate invoice in committed/terminal state '{inv.status.value}'."
+        )
+
+    # OCC version verification
+    if payload.expected_version is not None and payload.expected_version != inv.version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"OCC conflict: expected version {payload.expected_version}, but current version is {inv.version}."
         )
 
     EscalationService.manual_escalate(
@@ -953,6 +981,7 @@ def manual_escalate_invoice(
         category=payload.category,
         db=db
     )
+    inv.version += 1
     db.commit()
     return get_invoice(inv.id, db)
 
@@ -968,12 +997,26 @@ def de_escalate_invoice(
     if not inv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Invoice {invoice_id} not found.")
 
+    if inv.status in (InvoiceStatus.APPROVED, InvoiceStatus.DELIVERED, InvoiceStatus.REJECTED):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Cannot de-escalate invoice in committed/terminal state '{inv.status.value}'."
+        )
+
+    # OCC version verification
+    if payload.expected_version is not None and payload.expected_version != inv.version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"OCC conflict: expected version {payload.expected_version}, but current version is {inv.version}."
+        )
+
     EscalationService.resolve_escalation(
         invoice=inv,
         actor=payload.actor,
         notes=payload.notes,
         db=db
     )
+    inv.version += 1
     db.commit()
     return get_invoice(inv.id, db)
 

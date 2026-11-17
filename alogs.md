@@ -544,3 +544,29 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Executed `test_escalation_and_stp.py`: **12 passed, 0 failed** (100% pass rate).
   - Status: PASS.
+
+
+### [2026-11-17 18:35:00 +05:30] QA Bug Audit & Defensive Hardening on STP and Escalation Engine
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Lifecycle State Governance & Escalation Edge Cases
+- **Files Modified / Created**:
+  - `backend/app/routers/invoices.py` (Modified):
+    - Cleared escalation metadata (`is_escalated = False`, `escalation_reason = None`, `escalation_category = None`) in `POST /api/v1/invoices/{id}/approve` upon successful checker approval and logged `ESCALATION_RESOLVED_ON_APPROVAL`. Prevents approved/delivered invoices from persisting as escalated ghost items.
+    - Added state exclusion in `GET /api/v1/invoices/escalated`: Filtered out committed/terminal states (`APPROVED`, `DELIVERED`, `REJECTED`) by default so the Human-in-the-Loop review queue only surfaces actionable, pending invoices.
+    - Updated `GET /api/v1/invoices/escalation-stats` to exclude non-pending invoices from `escalated_count` and `category_breakdown`, ensuring dashboard KPIs accurately reflect true pending backlogs.
+    - Guarded `POST /api/v1/invoices/{id}/escalate` and `/de-escalate` against mutating `APPROVED`, `DELIVERED`, and `REJECTED` invoices (returns HTTP 422).
+    - Added Optimistic Concurrency Control (OCC) version checking to `POST /api/v1/invoices/{id}/escalate` and `/de-escalate` (returns HTTP 409 Conflict on version mismatch) and incremented `inv.version += 1` on mutation.
+  - `backend/app/schemas/invoice_api.py` (Modified):
+    - Added `expected_version: Optional[int] = None` to `ManualEscalationRequest` and `DeEscalationRequest`.
+  - `backend/tests/test_escalation_and_stp.py` (Modified):
+    - Added 3 automated tests: `test_approving_escalated_invoice_resolves_escalation_and_delivers`, `test_cannot_escalate_approved_invoice`, and `test_escalate_and_deescalate_with_occ_protection`.
+    - Suite expanded from 12 to 15 tests, all verified passing.
+  - `alogs.md` (Modified): Appended changelog entry.
+- **What Changed**:
+  - Eliminated queue leakage where approved invoices lingered in the escalated queue, added OCC concurrency protection to manual escalation APIs, and locked committed/terminal states from re-escalation.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check for bugs" — enforcing strict state immutability, Maker-Checker closure, and race condition prevention.
+- **QA & Verification Status**:
+  - Executed `test_escalation_and_stp.py`: **15 passed, 0 failed** (100% pass rate).
+  - Status: PASS.

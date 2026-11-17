@@ -517,3 +517,154 @@ class TestEscalationAndSTPEngine:
         assert updated["is_escalated"] is False
         assert updated["escalation_category"] is None
         assert updated["escalation_reason"] is None
+
+    def test_approving_escalated_invoice_resolves_escalation_and_delivers(self, client, db_session):
+        """Verifies that checker approval of an escalated invoice clears escalation and removes it from HITL queue."""
+        doc = Document(source="upload", file_name="high.pdf", file_path="high.pdf", file_hash="hh1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_APPROVAL,
+            supplier_name="High Value Vendor",
+            supplier_gstin="33AAACA1234A1Z5",
+            invoice_number="INV-HIGH-777",
+            grand_total=150000.0,
+            is_valid=True,
+            is_escalated=True,
+            escalation_category="HIGH_VALUE_AUDIT",
+            escalation_reason="Exceeds STP threshold",
+            version=1
+        )
+        db_session.add(inv)
+        db_session.flush()
+
+        line = InvoiceLineItem(
+            invoice_id=inv.id,
+            description="Machinery Unit",
+            quantity=1,
+            unit_price=150000.0,
+            total_amount=150000.0
+        )
+        db_session.add(line)
+        db_session.commit()
+
+        # Approve as authorized checker
+        appr_res = client.post(
+            f"/api/v1/invoices/{inv.id}/approve",
+            json={
+                "actor": "executive_checker",
+                "notes": "Sign-off authorized for large capital expenditure",
+                "expected_version": 1
+            }
+        )
+        assert appr_res.status_code == 200
+        appr_data = appr_res.json()
+        assert appr_data["status"] == "DELIVERED"
+        assert appr_data["is_escalated"] is False
+        assert appr_data["escalation_category"] is None
+
+        # Confirm it is no longer listed in active escalated invoices
+        esc_queue = client.get("/api/v1/invoices/escalated").json()
+        matching = [item for item in esc_queue if item["id"] == inv.id]
+        assert len(matching) == 0
+
+        # Confirm stats don't count delivered invoice in escalated_count
+        stats = client.get("/api/v1/invoices/escalation-stats").json()
+        assert stats["escalated_count"] == 0
+        assert stats["delivered_count"] == 1
+
+    def test_cannot_escalate_approved_invoice(self, client, db_session):
+        """Verifies attempting to escalate an approved invoice returns HTTP 422."""
+        doc = Document(source="upload", file_name="appr2.pdf", file_path="appr2.pdf", file_hash="ah2", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.APPROVED,
+            supplier_name="Committed Vendor",
+            invoice_number="INV-COMM-1",
+            grand_total=200.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        res = client.post(
+            f"/api/v1/invoices/{inv.id}/escalate",
+            json={
+                "actor": "late_auditor",
+                "reason": "Late inquiry"
+            }
+        )
+        assert res.status_code == 422
+        assert "Cannot escalate invoice in committed/terminal state" in res.json()["detail"]
+
+    def test_escalate_and_deescalate_with_occ_protection(self, client, db_session):
+        """Verifies OCC conflict (HTTP 409) on stale expected_version and version increment on success."""
+        doc = Document(source="upload", file_name="occ.pdf", file_path="occ.pdf", file_hash="oh1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_APPROVAL,
+            supplier_name="OCC Vendor",
+            invoice_number="INV-OCC-1",
+            grand_total=300.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        # 1. Stale version conflict
+        res_conflict = client.post(
+            f"/api/v1/invoices/{inv.id}/escalate",
+            json={
+                "actor": "auditor_a",
+                "reason": "Check prices",
+                "expected_version": 999
+            }
+        )
+        assert res_conflict.status_code == 409
+        assert "OCC conflict" in res_conflict.json()["detail"]
+
+        # 2. Correct version succeeds and increments version to 2
+        res_ok = client.post(
+            f"/api/v1/invoices/{inv.id}/escalate",
+            json={
+                "actor": "auditor_a",
+                "reason": "Check prices",
+                "expected_version": 1
+            }
+        )
+        assert res_ok.status_code == 200
+        assert res_ok.json()["version"] == 2
+        assert res_ok.json()["is_escalated"] is True
+
+        # 3. De-escalate with stale version 1 fails
+        de_conflict = client.post(
+            f"/api/v1/invoices/{inv.id}/de-escalate",
+            json={
+                "actor": "supervisor_b",
+                "notes": "Verified",
+                "expected_version": 1
+            }
+        )
+        assert de_conflict.status_code == 409
+
+        # 4. De-escalate with correct version 2 succeeds and increments version to 3
+        de_ok = client.post(
+            f"/api/v1/invoices/{inv.id}/de-escalate",
+            json={
+                "actor": "supervisor_b",
+                "notes": "Verified",
+                "expected_version": 2
+            }
+        )
+        assert de_ok.status_code == 200
+        assert de_ok.json()["version"] == 3
+        assert de_ok.json()["is_escalated"] is False
+
