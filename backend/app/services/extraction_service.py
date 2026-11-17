@@ -9,6 +9,7 @@ from backend.app.schemas.document import DocumentProcessingResult
 from backend.app.schemas.invoice import (
     CanonicalInvoice,
     ExtractionResponse,
+    LineItem,
 )
 from backend.app.services.document_processor import DocumentProcessor
 from backend.app.services.gemini_extractor import GeminiExtractor
@@ -102,8 +103,8 @@ class ExtractionService:
                 f"Local text extraction unavailable or empty for '{filename}'. "
                 "Falling back to Multimodal Vision as LAST RESORT..."
             )
-            payload_bytes = doc_result.preprocessed_bytes if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else file_bytes
-            payload_mime = "image/png" if (doc_result.preprocessed_bytes and doc_result.document_type == "IMAGE") else doc_result.mime_type
+            payload_bytes = doc_result.preprocessed_bytes if doc_result.preprocessed_bytes else file_bytes
+            payload_mime = "image/png" if doc_result.preprocessed_bytes else doc_result.mime_type
             ai_response = self.gemini_extractor.extract_invoice(
                 file_bytes=payload_bytes,
                 mime_type=payload_mime,

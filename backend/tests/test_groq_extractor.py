@@ -64,3 +64,12 @@ class TestGroqExtractor:
         assert "groq_model" in data
         assert data["groq_model"] == "qwen/qwen3.8-27b"
         assert data["groq_api_key_configured"] is True
+
+    def test_groq_safe_float_sanitization(self):
+        """Verifies _safe_float cleans formatted strings, currency symbols, and commas."""
+        assert GroqExtractor._safe_float("1,200.50") == 1200.50
+        assert GroqExtractor._safe_float("$500.00") == 500.00
+        assert GroqExtractor._safe_float("₹ 1,450.25") == 1450.25
+        assert GroqExtractor._safe_float("N$ 7,168.00") == 7168.00
+        assert GroqExtractor._safe_float(None, default=0.0) == 0.0
+        assert GroqExtractor._safe_float("invalid", default=0.0) == 0.0

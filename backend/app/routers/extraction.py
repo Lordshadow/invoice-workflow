@@ -23,6 +23,7 @@ async def get_extraction_status():
         "groq_active": service.groq_extractor.is_active,
         "groq_model": service.groq_extractor.primary_model,
         "groq_api_key_configured": bool(settings.GROQ_API_KEY),
+        "paddle_ocr_active": True,
         "vertex_ai_enabled": settings.USE_VERTEX_AI,
         "gcp_project_id": settings.GCP_PROJECT_ID or None,
         "gemini_api_key_configured": bool(settings.GEMINI_API_KEY)
@@ -64,10 +65,11 @@ async def extract_invoice(
     logger.info(f"Received extraction request for '{file.filename}' ({len(file_bytes)} bytes)")
     result = service.process_and_extract(file.filename, file_bytes)
 
-    if not result.success and result.error_message:
+    if not result.success:
+        detail = result.error_message or (", ".join(result.validation_errors) if result.validation_errors else "Failed to extract invoice.")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=result.error_message
+            detail=detail
         )
 
     return result

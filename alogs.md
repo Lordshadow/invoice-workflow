@@ -318,3 +318,41 @@ This file records all architectural decisions, file creations, modifications, QA
   - Full automated pytest suite executed: 31 passed, 0 failed in 41.99s.
   - All 5 new `InvoiceValidator` tests passed.
   - Status: PASS.
+
+
+### [2026-11-17 16:15:00 +05:30] Deep QA & Robustness Hardening: Null-Safety, QR Line-Item Synthesis, Regex Float Sanitization & Resource Cleanup
+
+- **Actor / Mode**: AI Engineering Assistant
+- **Phase / Scope**: Thorough Codebase Inspection & Non-Regression Hardening (Zero Critical Core Bugs)
+- **Files Modified / Created**:
+  - `backend/app/services/extraction_service.py` (Modified):
+    - Added missing `LineItem` import from `backend.app.schemas.invoice` to prevent `NameError` during government QR line-item synthesis.
+    - Updated multimodal fallback to inspect `doc_result.preprocessed_bytes` for any document type (including scanned PDFs).
+  - `backend/app/services/invoice_validator.py` (Modified):
+    - Added comprehensive defensive null-safety for `invoice`, `invoice.metadata`, `invoice.supplier`, and `invoice.tax`.
+    - Added handling for `"null"`, `"none"`, `"n/a"`, `"unknown"`, and empty strings in `normalize_date()`.
+  - `backend/app/services/groq_extractor.py` (Modified):
+    - Implemented regex-based `_safe_float` (`re.sub(r"[^\d.\-]", "", val)`) to cleanly sanitize non-numeric symbols, currency codes (`₹`, `$`, `€`, `N$`), and commas without converting or failing on currency-prefixed strings.
+  - `backend/app/services/pdf_extractor.py` (Modified):
+    - Wrapped PyMuPDF document rendering loop in `try...finally: doc.close()` to guarantee document handles and memory are safely released even on unexpected exceptions.
+  - `backend/app/main.py` (Modified):
+    - Protected `StarletteHTTPException` in the global exception handler to guarantee 4xx HTTP responses (400, 404, 422) are never masked as 500 errors.
+  - `backend/app/routers/extraction.py` (Modified):
+    - Added `paddle_ocr_active: True` to extraction status response and ensured HTTP 422 is properly raised on any extraction failure.
+  - `backend/tests/test_extraction.py` (Modified): Added test for B2B QR code synthesis when AI returns zero total.
+  - `backend/tests/test_groq_extractor.py` (Modified): Added test for `_safe_float` currency symbol and comma cleaning.
+  - `backend/tests/test_invoice_validator.py` (Modified): Added tests for `None` invoice inputs, defensive partial invoices, and date edge cases.
+  - `alogs.md` (Modified): Appended activity log for deep QA audit.
+- **What Changed**:
+  - Identified and eliminated 4 latent edge-case bugs:
+    1. Potential `NameError: name 'LineItem' is not defined` when synthesizing line items from B2B e-invoice QR codes.
+    2. Potential `AttributeError` in `InvoiceValidator` on partially populated or un-itemized invoice data.
+    3. Currency string parsing failure on multi-currency strings (such as `N$ 7,168.00`).
+    4. Unreleased PyMuPDF document handles on potential rendering exceptions.
+  - Expanded automated test suite from 31 to 36 tests.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "one last bug check, check throuly and make sure to no seviour bugs that messup the core parts and don't creates new bugs".
+- **QA & Verification Status**:
+  - Full automated pytest suite executed: **36 passed, 0 failed** in 61.91s (100% pass rate).
+  - All 4 new defensive tests passed.
+  - Status: PASS.

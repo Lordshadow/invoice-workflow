@@ -89,3 +89,34 @@ class TestInvoiceValidator:
         is_valid, errors = InvoiceValidator.validate(inv)
         assert is_valid is False
         assert any("Grand total mismatch" in e for e in errors)
+
+    def test_none_invoice_handling(self):
+        """Verifies that passing None to validate returns False with an error message and does not crash."""
+        is_valid, errors = InvoiceValidator.validate(None)
+        assert is_valid is False
+        assert "Invoice object is None" in errors
+
+    def test_partial_invoice_defensive_null_safety(self):
+        """Verifies that an invoice with None tax or optional fields does not raise AttributeError."""
+        # Test null safety when attributes are None
+        dummy_inv = type("DummyInvoice", (), {
+            "metadata": None,
+            "supplier": None,
+            "tax": None,
+            "subtotal": 100.0,
+            "grand_total": 100.0,
+            "round_off": 0.0,
+            "line_items": []
+        })()
+        is_valid, errors = InvoiceValidator.validate(dummy_inv)
+        # Should execute safely without raising any exception
+        assert isinstance(is_valid, bool)
+        assert isinstance(errors, list)
+
+    def test_date_normalization_edge_cases(self):
+        """Verifies null string variations return None safely."""
+        assert InvoiceValidator.normalize_date("null") is None
+        assert InvoiceValidator.normalize_date("none") is None
+        assert InvoiceValidator.normalize_date("N/A") is None
+        assert InvoiceValidator.normalize_date("unknown") is None
+        assert InvoiceValidator.normalize_date("   ") is None

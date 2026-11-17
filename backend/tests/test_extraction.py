@@ -58,6 +58,43 @@ class TestInvoiceExtractionAPI:
         assert len(data["invoice"]["line_items"]) >= 1  # Full line items are preserved!
         assert "Verified against Indian GST" in data["invoice"]["extraction_notes"]
 
+    def test_extract_b2b_qr_synthesis_when_zero_total(self, client, sample_gst_einvoice_qr_image_bytes, monkeypatch):
+        """Verifies that if an invoice only contains a QR code with 0 total, line items and totals are synthesized safely."""
+        from unittest.mock import MagicMock
+        from backend.app.schemas.invoice import ExtractionResponse
+        from backend.app.routers.extraction import service
+
+        # Mock AI extraction returning 0 total
+        zero_inv = CanonicalInvoice(
+            supplier=SupplierDetails(name="QR Supplier"),
+            metadata=InvoiceMetadata(invoice_number="QR-001"),
+            line_items=[],
+            subtotal=0.0,
+            grand_total=0.0
+        )
+        mock_resp = ExtractionResponse(
+            success=True,
+            provider="mock",
+            model_name="mock",
+            latency_ms=10.0,
+            invoice=zero_inv,
+            validation_passed=True
+        )
+        monkeypatch.setattr(service.groq_extractor, "extract_from_text", lambda *a, **k: mock_resp)
+        monkeypatch.setattr(service.gemini_extractor, "extract_from_text", lambda *a, **k: mock_resp)
+        monkeypatch.setattr(service.gemini_extractor, "extract_invoice", lambda *a, **k: mock_resp)
+
+        response = client.post(
+            "/api/v1/extract",
+            files={"file": ("einvoice_qr.png", sample_gst_einvoice_qr_image_bytes, "image/png")}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["invoice"]["grand_total"] == 11800.0
+        assert len(data["invoice"]["line_items"]) >= 1
+        assert data["invoice"]["line_items"][0]["total_amount"] == 11800.0
+
     def test_extract_empty_file(self, client):
         """Verifies HTTP 400 when uploading an empty file for extraction."""
         response = client.post(

@@ -3,9 +3,10 @@ Main entry point for the Invoice Processing FastAPI Application.
 """
 import logging
 import sys
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.config import settings
 from backend.app.routers.document_processing import router as document_router
@@ -42,6 +43,9 @@ app.add_middleware(
 # Global unified error handler (Senior Backend Developer Standard)
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        # Let FastAPI/Starlette handle standard HTTP exceptions (400, 404, 422, etc.)
+        raise exc
     logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

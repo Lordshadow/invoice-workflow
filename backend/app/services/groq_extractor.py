@@ -129,6 +129,23 @@ class GroqExtractor:
         try:
             parsed_dict = json.loads(raw_json_str)
 
+            # Sanitize numeric fields against formatting strings e.g. "1,200.50" or "$500"
+            for num_key in ("subtotal", "grand_total", "round_off"):
+                if num_key in parsed_dict:
+                    parsed_dict[num_key] = self._safe_float(parsed_dict[num_key])
+
+            if isinstance(parsed_dict.get("tax"), dict):
+                for k in ("cgst", "sgst", "igst", "cess"):
+                    if k in parsed_dict["tax"]:
+                        parsed_dict["tax"][k] = self._safe_float(parsed_dict["tax"][k])
+
+            if isinstance(parsed_dict.get("line_items"), list):
+                for item in parsed_dict["line_items"]:
+                    if isinstance(item, dict):
+                        for k in ("quantity", "unit_price", "discount", "tax_rate", "cgst_amount", "sgst_amount", "igst_amount", "total_amount"):
+                            if k in item:
+                                item[k] = self._safe_float(item[k])
+
             # Clean and validate date fields
             meta = parsed_dict.get("metadata", {})
             if meta.get("invoice_date"):
@@ -138,13 +155,13 @@ class GroqExtractor:
 
             # Ensure grand_total and subtotal are populated
             if parsed_dict.get("subtotal") is None or parsed_dict.get("subtotal") == 0.0:
-                item_tot = sum(float(it.get("total_amount") or 0.0) for it in parsed_dict.get("line_items", []))
+                item_tot = sum(self._safe_float(it.get("total_amount")) for it in parsed_dict.get("line_items", []))
                 if item_tot > 0:
                     parsed_dict["subtotal"] = item_tot
             if parsed_dict.get("grand_total") is None or parsed_dict.get("grand_total") == 0.0:
-                sub = float(parsed_dict.get("subtotal") or 0.0)
+                sub = self._safe_float(parsed_dict.get("subtotal"))
                 tax_dict = parsed_dict.get("tax") or {}
-                tax_tot = sum(float(v or 0.0) for v in tax_dict.values() if isinstance(v, (int, float)))
+                tax_tot = sum(self._safe_float(v) for v in tax_dict.values())
                 parsed_dict["grand_total"] = round(sub + tax_tot, 2)
 
             invoice_model = CanonicalInvoice.model_validate(parsed_dict)
@@ -183,6 +200,23 @@ class GroqExtractor:
         except Exception as e:
             logger.error(f"Failed to parse Groq JSON response into CanonicalInvoice: {e}", exc_info=True)
             return self._fallback_local_parse(filename, start_time, text)
+
+    @staticmethod
+    def _safe_float(val: Any, default: float = 0.0) -> float:
+        """Safely parses float from numeric types or currency strings like '1,200.50' or 'N$ 7,168.00'."""
+        if val is None:
+            return default
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            clean = re.sub(r"[^\d.\-]", "", val)
+            if not clean or clean in ("-", ".", "-."):
+                return default
+            try:
+                return float(clean)
+            except ValueError:
+                return default
+        return default
 
     @staticmethod
     def _normalize_date(date_str: Optional[str]) -> Optional[str]:

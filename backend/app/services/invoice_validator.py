@@ -31,7 +31,9 @@ class InvoiceValidator:
         """
         if not date_str:
             return None
-        clean = date_str.strip()
+        clean = str(date_str).strip()
+        if not clean or clean.lower() in ("null", "none", "n/a", "na", "unknown"):
+            return None
         if re.match(r"^\d{4}-\d{2}-\d{2}$", clean):
             return clean
         try:
@@ -41,35 +43,45 @@ class InvoiceValidator:
             return clean
 
     @classmethod
-    def validate(cls, invoice: CanonicalInvoice) -> Tuple[bool, List[str]]:
+    def validate(cls, invoice: Optional[CanonicalInvoice]) -> Tuple[bool, List[str]]:
         """
         Runs comprehensive arithmetic, tax, and schema coherence checks.
         Returns:
             (is_valid: bool, validation_errors: List[str])
         """
         errors: List[str] = []
-        currency = (invoice.metadata.currency or "INR").upper()
+        if invoice is None:
+            return False, ["Invoice object is None"]
+
+        meta = getattr(invoice, "metadata", None)
+        currency = ((meta.currency if meta else None) or "INR").upper()
+        place = (meta.place_of_supply.lower() if (meta and meta.place_of_supply) else "")
+        supp = getattr(invoice, "supplier", None)
+        supp_addr = (supp.address.lower() if (supp and supp.address) else "")
+
         is_indian_invoice = (
             currency == "INR"
-            or (invoice.metadata.place_of_supply and any(k in invoice.metadata.place_of_supply.lower() for k in ["india", "tamil", "delhi", "maharashtra", "karnataka", "telangana", "gujarat", "uttar"]))
-            or (invoice.supplier.address and "india" in invoice.supplier.address.lower())
+            or any(k in place for k in ["india", "tamil", "delhi", "maharashtra", "karnataka", "telangana", "gujarat", "uttar"])
+            or "india" in supp_addr
         )
 
         # 1. Tax ID / GSTIN Validation
-        if invoice.supplier and invoice.supplier.gstin:
-            gstin = invoice.supplier.gstin.strip().upper()
+        if supp and supp.gstin:
+            gstin = supp.gstin.strip().upper()
             if is_indian_invoice:
                 if not re.match(cls.INDIAN_GSTIN_REGEX, gstin):
-                    errors.append(f"Non-standard Supplier GSTIN format: '{invoice.supplier.gstin}' (Expected 15-character Indian GST format)")
+                    errors.append(f"Non-standard Supplier GSTIN format: '{supp.gstin}' (Expected 15-character Indian GST format)")
             else:
                 if not re.match(cls.FOREIGN_TAX_ID_REGEX, gstin):
-                    errors.append(f"Invalid Foreign Tax / VAT Registration ID: '{invoice.supplier.gstin}'")
+                    errors.append(f"Invalid Foreign Tax / VAT Registration ID: '{supp.gstin}'")
 
         # 2. Line Item Coherence Check
-        if invoice.line_items:
-            items_total = round(sum(round(item.total_amount, 2) for item in invoice.line_items), 2)
-            subtotal = round(invoice.subtotal, 2)
-            grand_total = round(invoice.grand_total, 2)
+        subtotal = round(float(getattr(invoice, "subtotal", 0.0) or 0.0), 2)
+        grand_total = round(float(getattr(invoice, "grand_total", 0.0) or 0.0), 2)
+        line_items = getattr(invoice, "line_items", []) or []
+
+        if line_items:
+            items_total = round(sum(round(float(getattr(item, "total_amount", 0.0) or 0.0), 2) for item in line_items), 2)
 
             # Sum of line items should match either grand total (tax-inclusive) or subtotal (tax-exclusive)
             diff_grand = abs(items_total - grand_total)
@@ -80,12 +92,13 @@ class InvoiceValidator:
                 )
 
         # 3. Overall Arithmetic Equation: Subtotal + Taxes + RoundOff == Grand Total
-        subtotal = round(invoice.subtotal, 2)
-        total_taxes = round(
-            invoice.tax.cgst + invoice.tax.sgst + invoice.tax.igst + invoice.tax.cess, 2
-        )
-        round_off = round(invoice.round_off, 2)
-        grand_total = round(invoice.grand_total, 2)
+        tax = getattr(invoice, "tax", None)
+        cgst = float(getattr(tax, "cgst", 0.0) or 0.0) if tax else 0.0
+        sgst = float(getattr(tax, "sgst", 0.0) or 0.0) if tax else 0.0
+        igst = float(getattr(tax, "igst", 0.0) or 0.0) if tax else 0.0
+        cess = float(getattr(tax, "cess", 0.0) or 0.0) if tax else 0.0
+        total_taxes = round(cgst + sgst + igst + cess, 2)
+        round_off = round(float(getattr(invoice, "round_off", 0.0) or 0.0), 2)
         calculated_total = round(subtotal + total_taxes + round_off, 2)
 
         diff = abs(round(calculated_total - grand_total, 2))
