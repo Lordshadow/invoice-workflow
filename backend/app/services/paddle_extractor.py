@@ -107,9 +107,10 @@ class PaddleOCRExtractor:
                 return "", [], 0.0
 
             res0 = results[0]
-            rec_texts = res0.get("rec_text", [])
-            dt_boxes = res0.get("dt_boxes", [])
-            rec_scores = res0.get("rec_score", [])
+            res_data = res0.get("res", res0) if isinstance(res0, dict) else getattr(res0, "json", {}).get("res", res0)
+            rec_texts = res_data.get("rec_texts", res_data.get("rec_text", []))
+            dt_boxes = res_data.get("rec_boxes", res_data.get("rec_polys", res_data.get("dt_boxes", [])))
+            rec_scores = res_data.get("rec_scores", res_data.get("rec_score", []))
 
             lines = []
             boxes = []
@@ -119,11 +120,18 @@ class PaddleOCRExtractor:
                 text_clean = str(text).strip()
                 if text_clean:
                     lines.append(text_clean)
-                    box = dt_boxes[i] if i < len(dt_boxes) else []
+                    raw_box = dt_boxes[i] if i < len(dt_boxes) else []
+                    box_coords = []
+                    if len(raw_box) == 4 and not hasattr(raw_box[0], "__len__"):
+                        x1, y1, x2, y2 = float(raw_box[0]), float(raw_box[1]), float(raw_box[2]), float(raw_box[3])
+                        box_coords = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+                    elif len(raw_box) and hasattr(raw_box[0], "__len__"):
+                        box_coords = [[float(pt[0]), float(pt[1])] for pt in raw_box]
+
                     score = float(rec_scores[i]) if i < len(rec_scores) else 0.95
                     boxes.append({
                         "text": text_clean,
-                        "box": [[float(pt[0]), float(pt[1])] for pt in box] if len(box) else [],
+                        "box": box_coords,
                         "confidence": round(score, 4)
                     })
                     scores.append(score)

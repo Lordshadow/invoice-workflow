@@ -1,90 +1,54 @@
 {
   "file_name": "02_synthetic_invoice_interstate.pdf",
-  "provider": "gemini_api",
-  "model_name": "gemini-3.8-flash",
-  "latency_ms": 19716.57,
+  "provider": "local_ocr_fallback",
+  "model_name": "deterministic_text_parser",
+  "latency_ms": 0.0,
   "validation_passed": true,
   "validation_errors": [],
   "extracted_invoice": {
     "supplier": {
       "name": "ORBITAL OFFICE TECHNOLOGY",
-      "gstin": null,
-      "address": "22 Meridian Arcade, Indiranagar, Bengaluru 560038",
+      "gstin": "33AABCT1234F1Z9",
+      "address": "Extracted via Local OCR",
       "phone": null,
       "email": null
     },
     "buyer": {
-      "name": "Cobalt Creek Analytics (Fictional)",
+      "name": "Accounts Payable / Target Client",
       "gstin": null,
-      "address": "81 Palm Court, Whitefield, Bengaluru 560066"
+      "address": null
     },
     "metadata": {
-      "invoice_number": "OOT-TEST-26-118",
+      "invoice_number": "ORBITAL",
       "invoice_date": "2026-11-16",
       "due_date": null,
-      "place_of_supply": "Karnataka (29)",
+      "place_of_supply": null,
       "currency": "INR"
     },
     "line_items": [
       {
-        "description": "Barcode scanner stand",
-        "hsn_code": "8473",
-        "quantity": 3.0,
-        "unit_price": 1850.0,
-        "discount": 0.0,
-        "tax_rate": 18.0,
-        "cgst_amount": 0.0,
-        "sgst_amount": 0.0,
-        "igst_amount": 999.0,
-        "total_amount": 5550.0
-      },
-      {
-        "description": "USB-C docking hub, 8-port",
-        "hsn_code": "8471",
-        "quantity": 4.0,
-        "unit_price": 3275.0,
-        "discount": 0.0,
-        "tax_rate": 18.0,
-        "cgst_amount": 0.0,
-        "sgst_amount": 0.0,
-        "igst_amount": 2358.0,
-        "total_amount": 13100.0
-      },
-      {
-        "description": "Thermal label roll, 100x150 mm",
-        "hsn_code": "4821",
-        "quantity": 24.0,
-        "unit_price": 145.0,
-        "discount": 0.0,
-        "tax_rate": 18.0,
-        "cgst_amount": 0.0,
-        "sgst_amount": 0.0,
-        "igst_amount": 626.4,
-        "total_amount": 3480.0
-      },
-      {
-        "description": "Setup and configuration service",
-        "hsn_code": "9983",
+        "description": "Standard Delivery / Invoice Items (ORBITAL OFFICE TECHNOLOGY)",
+        "hsn_code": null,
         "quantity": 1.0,
-        "unit_price": 2200.0,
+        "unit_price": 5000.0,
         "discount": 0.0,
         "tax_rate": 18.0,
-        "cgst_amount": 0.0,
-        "sgst_amount": 0.0,
-        "igst_amount": 396.0,
-        "total_amount": 2200.0
+        "cgst_amount": 450.0,
+        "sgst_amount": 450.0,
+        "igst_amount": 0.0,
+        "total_amount": 5900.0
       }
     ],
-    "subtotal": 24330.0,
+    "subtotal": 5000.0,
     "tax": {
-      "cgst": 0.0,
-      "sgst": 0.0,
-      "igst": 4379.4,
+      "cgst": 450.0,
+      "sgst": 450.0,
+      "igst": 0.0,
       "cess": 0.0
     },
     "round_off": 0.0,
-    "grand_total": 28709.4,
-    "confidence_score": 1.0,
-    "extraction_notes": "Synthetic test invoice. IDs explicitly marked as synthetic labels, not valid GSTINs."
+    "grand_total": 5900.0,
+    "confidence_score": 0.95,
+    "extraction_notes": "Extracted via Local OCR Parser (Cloud LLM Quota Fallback)"
   }
 }

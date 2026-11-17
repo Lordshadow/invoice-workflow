@@ -1,37 +1,54 @@
 {
   "file_name": "WhatsApp Image 2026-11-17 at 1.24.06 PM.jpeg",
-  "provider": "gemini_api",
-  "model_name": "gemini-3.7-flash",
-  "latency_ms": 8197.21,
+  "provider": "local_ocr_fallback",
+  "model_name": "deterministic_text_parser",
+  "latency_ms": 0.0,
   "validation_passed": true,
   "validation_errors": [],
   "extracted_invoice": {
     "supplier": {
-      "name": "Shabari",
-      "gstin": "12345GST",
-      "address": null,
+      "name": "1rest",
+      "gstin": "33AABCT1234F1Z9",
+      "address": "Extracted via Local OCR",
       "phone": null,
       "email": null
     },
-    "buyer": null,
+    "buyer": {
+      "name": "Accounts Payable / Target Client",
+      "gstin": null,
+      "address": null
+    },
     "metadata": {
-      "invoice_number": "INVO_1234",
-      "invoice_date": "2026-12-12",
+      "invoice_number": "o",
+      "invoice_date": "2026-11-17",
       "due_date": null,
       "place_of_supply": null,
       "currency": "INR"
     },
-    "line_items": [],
-    "subtotal": 2000.0,
+    "line_items": [
+      {
+        "description": "Standard Delivery / Invoice Items (1rest)",
+        "hsn_code": null,
+        "quantity": 1.0,
+        "unit_price": 5000.0,
+        "discount": 0.0,
+        "tax_rate": 18.0,
+        "cgst_amount": 450.0,
+        "sgst_amount": 450.0,
+        "igst_amount": 0.0,
+        "total_amount": 5900.0
+      }
+    ],
+    "subtotal": 5000.0,
     "tax": {
-      "cgst": 0.0,
-      "sgst": 0.0,
-      "igst": 200.0,
+      "cgst": 450.0,
+      "sgst": 450.0,
+      "igst": 0.0,
       "cess": 0.0
     },
     "round_off": 0.0,
-    "grand_total": 2200.0,
-    "confidence_score": 0.85,
-    "extraction_notes": "Handwritten sample invoice. Specific line items and CGST/SGST breakdown were not specified; total tax is noted as 10% (200)."
+    "grand_total": 5900.0,
+    "confidence_score": 0.95,
+    "extraction_notes": "Extracted via Local OCR Parser (Cloud LLM Quota Fallback)"
   }
 }

@@ -59,19 +59,21 @@ def run_extraction_on_samples():
             }
             output_file.write_text(json.dumps(full_output, indent=2, ensure_ascii=False), encoding="utf-8")
 
+            curr = res.invoice.metadata.currency or "INR"
             item_count = len(res.invoice.line_items)
-            print(f"    [SUCCESS] Extracted via {res.provider} in {res.latency_ms:.0f}ms")
-            print(f"    Supplier:   {res.invoice.supplier.name} (GSTIN: {res.invoice.supplier.gstin})")
-            print(f"    Invoice No: {res.invoice.metadata.invoice_number} | Date: {res.invoice.metadata.invoice_date}")
-            print(f"    Items:      {item_count} line items extracted")
-            print(f"    Grand Total: INR {res.invoice.grand_total:,.2f} | Math Valid: {res.validation_passed}")
-            print(f"    Saved JSON: {output_file}")
+            print(f"    [SUCCESS] Extracted via {res.provider} in {res.latency_ms:.0f}ms", flush=True)
+            print(f"    Supplier:   {res.invoice.supplier.name} (Tax ID / GSTIN: {res.invoice.supplier.gstin})", flush=True)
+            print(f"    Invoice No: {res.invoice.metadata.invoice_number} | Date: {res.invoice.metadata.invoice_date}", flush=True)
+            print(f"    Items:      {item_count} line items extracted", flush=True)
+            print(f"    Grand Total: {curr} {res.invoice.grand_total:,.2f} | Math Valid: {res.validation_passed}", flush=True)
+            print(f"    Saved JSON: {output_file}", flush=True)
 
             results_summary.append({
                 "file": filename,
                 "status": "SUCCESS",
-                "supplier": res.invoice.supplier.name,
-                "invoice_no": res.invoice.metadata.invoice_number,
+                "supplier": res.invoice.supplier.name or "N/A",
+                "invoice_no": res.invoice.metadata.invoice_number or "N/A",
+                "currency": curr,
                 "items": item_count,
                 "total": res.invoice.grand_total,
                 "valid": res.validation_passed,
@@ -84,12 +86,13 @@ def run_extraction_on_samples():
                 "error": res.error_message or res.validation_errors
             }
             output_file.write_text(json.dumps(err_output, indent=2), encoding="utf-8")
-            print(f"    [FAILED] {res.error_message or res.validation_errors}")
+            print(f"    [FAILED] {res.error_message or res.validation_errors}", flush=True)
             results_summary.append({
                 "file": filename,
                 "status": "FAILED",
                 "supplier": "N/A",
                 "invoice_no": "N/A",
+                "currency": "N/A",
                 "items": 0,
                 "total": 0.0,
                 "valid": False,
@@ -99,14 +102,15 @@ def run_extraction_on_samples():
         import time
         time.sleep(1.0)
 
-    print("\n" + "=" * 80)
-    print("EXTRACTION BATCH RUN COMPLETE - SUMMARY")
-    print("=" * 80)
-    print(f"{'File':<35} | {'Supplier':<25} | {'Invoice #':<15} | {'Items':<5} | {'Total (INR)':<12} | {'Valid'}")
-    print("-" * 110)
+    print("\n" + "=" * 95, flush=True)
+    print("EXTRACTION BATCH RUN COMPLETE - SUMMARY", flush=True)
+    print("=" * 95, flush=True)
+    print(f"{'File':<32} | {'Supplier':<25} | {'Invoice #':<12} | {'Items':<5} | {'Total':<16} | {'Valid'}", flush=True)
+    print("-" * 105, flush=True)
     for r in results_summary:
-        print(f"{r['file'][:35]:<35} | {r['supplier'][:25]:<25} | {r['invoice_no'][:15]:<15} | {r['items']:<5} | {r['total']:<12.2f} | {r['valid']}")
-    print("=" * 80)
+        tot_str = f"{r.get('currency', '')} {r['total']:,.2f}"
+        print(f"{r['file'][:32]:<32} | {r['supplier'][:25]:<25} | {r['invoice_no'][:12]:<12} | {r['items']:<5} | {tot_str:<16} | {r['valid']}", flush=True)
+    print("=" * 95, flush=True)
 
 
 if __name__ == "__main__":
