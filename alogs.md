@@ -112,3 +112,34 @@ This file records all architectural decisions, file creations, modifications, QA
   - Automated pytest test suite executed: 14 tests, 14 passed (100% pass rate).
   - Verified full line items are extracted and preserved with and without QR codes.
   - Status: PASS.
+
+
+### [2026-11-17 13:41:30 +05:30] Live Batch AI Extraction on Real Sample Documents
+
+- **Actor / Mode**: AI Engineering Assistant
+- **Phase / Scope**: Phase 1 Verification — Live Multimodal Extraction Benchmark
+- **Files Modified / Created**:
+  - `run_samples.py` (Created): Batch runner script for processing sample directories and generating JSON outputs.
+  - `outputs/01_synthetic_invoice_digital_extracted.json` (Created): Extracted JSON for Word `.docx` invoice (4 items, ₹2,914.60).
+  - `outputs/02_synthetic_invoice_interstate_extracted.json` (Created): Extracted JSON for Interstate PDF (4 items, ₹28,709.40).
+  - `outputs/03_synthetic_invoice_printed_photo_extracted.json` (Created): Extracted JSON for Printed Photo (3 items, ₹7,168.00).
+  - `outputs/04_synthetic_invoice_handwritten_photo_extracted.json` (Created): Extracted JSON for Handwritten Photo (3 items, ₹1,480.50).
+  - `outputs/ChatGPT Image Nov 17, 2026, 01_30_43 PM_extracted.json` (Created): Extracted JSON for Workwear Invoice.
+  - `outputs/ChatGPT Image Nov 17, 2026, 01_30_57 PM_extracted.json` (Created): Extracted JSON for Riverbend Packing Invoice.
+  - `outputs/WhatsApp Image 2026-11-17 at 1.24.06 PM_extracted.json` (Created): Extracted JSON for WhatsApp phone photo (₹2,200.00).
+  - `backend/app/config.py` (Modified): Configured `gemini-3.7-flash` model and DOCX parsing support.
+  - `backend/app/services/gemini_extractor.py` (Modified): Added DOCX text extraction and multi-model retry fallback against transient server overload.
+  - `backend/app/services/document_processor.py` (Modified): Added DOCX MIME type detection.
+  - `alogs.md` (Modified): Recorded batch run results.
+- **What Changed**:
+  - Connected the user's live Gemini API key from `.env`.
+  - Added native support for Word document invoices (`.docx`) alongside PDFs, PNGs, and JPEGs.
+  - Executed end-to-end extraction across all 7 user-provided sample documents in `samples/`.
+  - Generated structured, pretty-printed canonical JSON files for every document.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user request to test the extraction engine against real images and documents and verify JSON output structure.
+- **QA & Verification Status**:
+  - 7 out of 7 documents successfully extracted (100% success rate).
+  - 100% of extractions passed deterministic arithmetic validation ($\text{Subtotal} + \text{Taxes} = \text{Total}$).
+  - Validated across digital DOCX, inter-state PDF, mobile phone photos, handwritten receipts, and WhatsApp camera photos.
+  - Status: PASS.

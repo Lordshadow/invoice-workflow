@@ -1,0 +1,78 @@
+{
+  "file_name": "03_synthetic_invoice_printed_photo.jpg",
+  "provider": "gemini_api",
+  "model_name": "gemini-3.7-flash",
+  "latency_ms": 12757.94,
+  "validation_passed": true,
+  "validation_errors": [],
+  "extracted_invoice": {
+    "supplier": {
+      "name": "MANGO TREE WORKWEAR",
+      "gstin": null,
+      "address": "7 Loom Street, Coimbatore, Tamil Nadu 641018",
+      "phone": null,
+      "email": null
+    },
+    "buyer": {
+      "name": "Lantern & Loom Retail (Fictional)",
+      "gstin": null,
+      "address": "19 Market Road, Salem 636001"
+    },
+    "metadata": {
+      "invoice_number": "MTW-TEST-366",
+      "invoice_date": "2026-11-12",
+      "due_date": null,
+      "place_of_supply": "Tamil Nadu (33)",
+      "currency": "INR"
+    },
+    "line_items": [
+      {
+        "description": "Cotton shop apron, navy",
+        "hsn_code": "6211",
+        "quantity": 8.0,
+        "unit_price": 425.0,
+        "discount": 0.0,
+        "tax_rate": 12.0,
+        "cgst_amount": 204.0,
+        "sgst_amount": 204.0,
+        "igst_amount": 0.0,
+        "total_amount": 3400.0
+      },
+      {
+        "description": "Canvas tool pouch, small",
+        "hsn_code": "4202",
+        "quantity": 6.0,
+        "unit_price": 310.0,
+        "discount": 0.0,
+        "tax_rate": 12.0,
+        "cgst_amount": 111.6,
+        "sgst_amount": 111.6,
+        "igst_amount": 0.0,
+        "total_amount": 1860.0
+      },
+      {
+        "description": "Protective sleeve, pair",
+        "hsn_code": "6307",
+        "quantity": 12.0,
+        "unit_price": 95.0,
+        "discount": 0.0,
+        "tax_rate": 12.0,
+        "cgst_amount": 68.4,
+        "sgst_amount": 68.4,
+        "igst_amount": 0.0,
+        "total_amount": 1140.0
+      }
+    ],
+    "subtotal": 6400.0,
+    "tax": {
+      "cgst": 384.0,
+      "sgst": 384.0,
+      "igst": 0.0,
+      "cess": 0.0
+    },
+    "round_off": 0.0,
+    "grand_total": 7168.0,
+    "confidence_score": 0.98,
+    "extraction_notes": "Synthetic test data marked as sample only. Valid GSTINs are not present."
+  }
+}

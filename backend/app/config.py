@@ -43,7 +43,7 @@ class Settings(BaseModel):
 
     # 3. Model Configuration
     GEMINI_MODEL_NAME: str = Field(
-        default_factory=lambda: os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash").strip()
+        default_factory=lambda: os.getenv("GEMINI_MODEL_NAME", "gemini-3.7-flash").strip()
     )
 
 

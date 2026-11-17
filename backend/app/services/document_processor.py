@@ -57,6 +57,8 @@ class DocumentProcessor:
             return "image/png"
         elif data.startswith(b"RIFF") and b"WEBP" in data[:12]:
             return "image/webp"
+        elif data.startswith(b"PK\x03\x04") and (filename.lower().endswith(".docx") or b"word/" in data[:1000]):
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
         # Fallback to extension check
         ext = filename.lower().split(".")[-1] if "." in filename else ""
@@ -68,6 +70,8 @@ class DocumentProcessor:
             return "image/png"
         elif ext == "webp":
             return "image/webp"
+        elif ext == "docx":
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
         return "application/octet-stream"
 
@@ -143,6 +147,30 @@ class DocumentProcessor:
                         deskew_angle=angle,
                         has_qr_code=has_qr,
                         qr_data=qr_result,
+                    )
+                )
+
+            elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                doc_type = DocumentType.DOCX
+                import zipfile
+                import xml.etree.ElementTree as ET
+                try:
+                    with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+                        xml_content = z.read("word/document.xml")
+                        tree = ET.fromstring(xml_content)
+                        digital_text = "".join(tree.itertext())
+                except Exception as e:
+                    logger.warning(f"Failed to read DOCX XML: {e}")
+                    digital_text = ""
+
+                pages_info.append(
+                    PageInfo(
+                        page_number=1,
+                        width=800,
+                        height=1000,
+                        text_char_count=len(digital_text),
+                        deskew_angle=0.0,
+                        has_qr_code=False,
                     )
                 )
 

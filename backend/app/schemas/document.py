@@ -10,6 +10,7 @@ class DocumentType(str, Enum):
     DIGITAL_PDF = "DIGITAL_PDF"
     SCANNED_PDF = "SCANNED_PDF"
     IMAGE = "IMAGE"
+    DOCX = "DOCX"
     UNKNOWN = "UNKNOWN"
 
 

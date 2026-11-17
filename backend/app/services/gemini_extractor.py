@@ -89,11 +89,33 @@ class GeminiExtractor:
         try:
             logger.debug(f"[DEV_DEBUG] Invoking Gemini ({self.mode}:{self.model_name}) for '{filename}' ({len(file_bytes)} bytes, {mime_type})")
 
-            # Prepare multimodal document part
-            doc_part = types.Part.from_bytes(
-                data=file_bytes,
-                mime_type=mime_type
-            )
+            # Prepare contents: handle DOCX/Text directly, or multimodal Part for PDF/Images
+            if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                import io
+                import zipfile
+                import xml.etree.ElementTree as ET
+                try:
+                    with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+                        xml_content = z.read("word/document.xml")
+                        tree = ET.fromstring(xml_content)
+                        doc_text = "".join(tree.itertext())
+                except Exception:
+                    doc_text = "DOCX invoice document"
+
+                content_items = [
+                    f"Invoice Document Text Content:\n{doc_text}",
+                    "Extract all invoice details from this document into the required canonical JSON schema."
+                ]
+            else:
+                # Prepare multimodal document part (PDF, JPEG, PNG, WEBP)
+                doc_part = types.Part.from_bytes(
+                    data=file_bytes,
+                    mime_type=mime_type
+                )
+                content_items = [
+                    doc_part,
+                    "Extract all invoice details from this document into the required canonical JSON schema."
+                ]
 
             # Enforce structured output via Pydantic model
             config = types.GenerateContentConfig(
@@ -103,18 +125,42 @@ class GeminiExtractor:
                 temperature=0.0
             )
 
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[
-                    doc_part,
-                    "Extract all invoice details from this document into the required canonical JSON schema."
-                ],
-                config=config
-            )
+            # Candidate models with automatic retry and fallback on transient 503/429 spikes
+            candidate_models = [self.model_name]
+            for alt in ["gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.5-flash"]:
+                if alt not in candidate_models:
+                    candidate_models.append(alt)
+
+            response = None
+            last_err = None
+            used_model = self.model_name
+
+            for model_to_try in candidate_models:
+                for attempt in range(2):
+                    try:
+                        response = self.client.models.generate_content(
+                            model=model_to_try,
+                            contents=content_items,
+                            config=config
+                        )
+                        used_model = model_to_try
+                        break
+                    except Exception as e:
+                        last_err = e
+                        if "503" in str(e) or "429" in str(e):
+                            logger.warning(f"Model {model_to_try} returned transient overload ({e}). Retrying with fallback...")
+                            time.sleep(1.5)
+                        else:
+                            break
+                if response is not None:
+                    break
+
+            if response is None:
+                raise last_err or RuntimeError("Extraction failed across all candidate models")
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             raw_text = response.text or "{}"
-            logger.debug(f"[DEV_DEBUG] Gemini response received in {elapsed_ms:.2f}ms: length={len(raw_text)} chars")
+            logger.debug(f"[DEV_DEBUG] Gemini response ({used_model}) received in {elapsed_ms:.2f}ms: length={len(raw_text)} chars")
 
             parsed_dict = json.loads(raw_text)
             invoice_model = CanonicalInvoice.model_validate(parsed_dict)
@@ -125,7 +171,7 @@ class GeminiExtractor:
             return ExtractionResponse(
                 success=True,
                 provider=self.mode,
-                model_name=self.model_name,
+                model_name=used_model,
                 latency_ms=elapsed_ms,
                 invoice=invoice_model,
                 validation_passed=valid,

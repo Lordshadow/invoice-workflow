@@ -1,0 +1,37 @@
+{
+  "file_name": "WhatsApp Image 2026-11-17 at 1.24.06 PM.jpeg",
+  "provider": "gemini_api",
+  "model_name": "gemini-3.7-flash",
+  "latency_ms": 8197.21,
+  "validation_passed": true,
+  "validation_errors": [],
+  "extracted_invoice": {
+    "supplier": {
+      "name": "Shabari",
+      "gstin": "12345GST",
+      "address": null,
+      "phone": null,
+      "email": null
+    },
+    "buyer": null,
+    "metadata": {
+      "invoice_number": "INVO_1234",
+      "invoice_date": "2026-12-12",
+      "due_date": null,
+      "place_of_supply": null,
+      "currency": "INR"
+    },
+    "line_items": [],
+    "subtotal": 2000.0,
+    "tax": {
+      "cgst": 0.0,
+      "sgst": 0.0,
+      "igst": 200.0,
+      "cess": 0.0
+    },
+    "round_off": 0.0,
+    "grand_total": 2200.0,
+    "confidence_score": 0.85,
+    "extraction_notes": "Handwritten sample invoice. Specific line items and CGST/SGST breakdown were not specified; total tax is noted as 10% (200)."
+  }
+}
