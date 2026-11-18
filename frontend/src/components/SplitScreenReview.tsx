@@ -103,11 +103,11 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
   };
 
   return (
-    <section className="w-full mx-auto mb-8 animate-in fade-in duration-200">
+    <section className="w-full mx-auto pt-2 pb-8 animate-in fade-in duration-200">
       {/* Toast Alert Notification */}
       {toast && (
         <div
-          className={`fixed top-20 right-8 z-50 px-4 py-3 rounded-2xl liquid-modal-glass shadow-2xl border flex items-center space-x-2 text-xs font-bold animate-in fade-in slide-in-from-top-4 ${
+          className={`fixed top-24 right-8 z-50 px-4 py-3 rounded-2xl liquid-modal-glass shadow-2xl border flex items-center space-x-2 text-xs font-bold animate-in fade-in slide-in-from-top-4 ${
             toast.type === 'success'
               ? 'border-emerald-300 text-emerald-800'
               : 'border-rose-300 text-rose-800'
@@ -122,8 +122,8 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
         </div>
       )}
 
-      {/* Top Breadcrumb & Controls */}
-      <div className="mb-3.5 flex items-center justify-between">
+      {/* Top Breadcrumb & Controls (Generous clearance beneath sticky navbar) */}
+      <div className="mb-4 flex items-center justify-between">
         <button
           onClick={onBack}
           className="px-4 py-2 rounded-2xl liquid-pill text-xs font-bold text-slate-800 hover:text-indigo-900 flex items-center space-x-1.5 border border-white/80 transition-all shadow-xs cursor-pointer active:scale-95"
@@ -139,7 +139,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
       </div>
 
       {/* Responsive Split-Screen Grid: Left Document Viewer, Right Line-Item Editor */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-140px)] min-h-[720px] max-h-[960px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-160px)] min-h-[700px] max-h-[960px]">
         {/* Left Pane: Document Canvas (5 cols on lg, 6 cols on xl) */}
         <div className="lg:col-span-5 xl:col-span-6 h-full flex flex-col min-h-0">
           <DocumentViewer

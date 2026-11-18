@@ -5,12 +5,17 @@ import {
   CheckCircle2, 
   ChevronRight, 
   ChevronDown, 
-  Building2 
+  Building2,
+  ArrowLeft
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { CompanyInvoice } from '../types/invoice';
 
-export const TargetERPViewer: React.FC = () => {
+interface TargetERPViewerProps {
+  onBack?: () => void;
+}
+
+export const TargetERPViewer: React.FC<TargetERPViewerProps> = ({ onBack }) => {
   const [invoices, setInvoices] = useState<CompanyInvoice[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -36,8 +41,25 @@ export const TargetERPViewer: React.FC = () => {
   };
 
   return (
-    <section className="max-w-[1600px] mx-auto px-6 mb-12">
-      <div className="crystal-card rounded-squircle-lg p-6 shadow-crystal-card border border-white/90">
+    <section className="max-w-[1600px] mx-auto px-4 sm:px-6 mb-12 animate-in fade-in duration-200">
+      {/* Top Breadcrumb & Return to Registry */}
+      {onBack && (
+        <div className="mb-4 flex items-center justify-between">
+          <button
+            onClick={onBack}
+            className="px-4 py-2 rounded-2xl liquid-pill text-xs font-bold text-slate-800 hover:text-indigo-900 flex items-center space-x-1.5 border border-white/80 transition-all shadow-xs cursor-pointer active:scale-95"
+          >
+            <ArrowLeft className="w-4 h-4 text-indigo-600" />
+            <span>Back to Invoice Registry</span>
+          </button>
+          <div className="text-xs text-slate-600 font-semibold flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <span>Target Company ERP Database (Ledger Egress)</span>
+          </div>
+        </div>
+      )}
+
+      <div className="liquid-card-frosted rounded-squircle-lg p-6 shadow-2xl border border-white/90">
         {/* Header */}
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-indigo-100">
           <div>

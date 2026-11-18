@@ -708,6 +708,8 @@ This file records all architectural decisions, file creations, modifications, QA
   - Status: PASS.
 
 
+### [2026-11-18 12:35:00 +05:30] Comprehensive UI/UX Audit, True Split-Screen Architecture & Visual Contrast Remediation
+
 - **Actor / Mode**: Senior Frontend Engineer & UI/UX Browser QA Specialist
 - **Phase / Scope**: Split-Screen Document Review, Popover/Modal Contrast Isolation, SVG Spline Numeric Hardening & Registry Layout Polish
 - **Files Modified / Created**:
@@ -740,6 +742,35 @@ This file records all architectural decisions, file creations, modifications, QA
     - Voucher registry single-line filter: `step_164.png`
     - Login active persona chip: `step_158.png`
   - Zero TypeScript compiler errors; build completed in 652ms.
+  - Status: PASS.
+
+
+### [2026-11-18 13:30:00 +05:30] Full Button & Navigation Verification, Reason Filter Scoping & Breadcrumb Clearance
+
+- **Actor / Mode**: Senior Frontend Engineer & UI/UX Specialist
+- **Phase / Scope**: Two-Way Tab & Filter Synchronization, Review Breadcrumb Elevation & SVG Path Cleanup
+- **Files Modified / Created**:
+  - `frontend/src/components/InvoiceQueue.tsx` (Modified): Scoped `categoryFilter` strictly to `selectedFilter === 'ESCALATED'`, and automatically reset `categoryFilter` to `'ALL'` whenever main status tabs are switched, completely preventing tables from getting stuck in an empty state.
+  - `frontend/src/App.tsx` (Modified): Wired `handleQueueFilterChange` for bi-directional synchronization between navbar tabs (`Invoice Registry` vs `Human Review Queue`) and table filter pills. Connected `onBack` handler to `TargetERPViewer`.
+  - `frontend/src/components/SplitScreenReview.tsx` (Modified): Added top padding (`pt-2 pb-8`), lowered container height to `h-[calc(100vh-160px)]`, and elevated toast alerts to `top-24 right-8`, guaranteeing generous clearance beneath the floating glass navbar and removing element occlusion.
+  - `frontend/src/components/TargetERPViewer.tsx` (Modified): Added a dedicated `← Back to Invoice Registry` breadcrumb button at the top header, providing immediate one-click return to the main dashboard.
+  - `frontend/src/components/LiquidHeroWave.tsx` (Modified): Standardized all SVG wave coordinate pairs and command delimiters to W3C SVG 1.1 syntax, permanently eliminating console parsing warnings.
+  - `frontend/dist/` (Rebuilt): Generated fresh production assets with `tsc -b && vite build` in 670ms with zero errors.
+- **What Changed**:
+  - Verified every button and tab on the dashboard systematically via browser subagent.
+  - Fixed the filter desync bug where switching from Action Required left the table in an empty state.
+  - Fixed breadcrumb occlusion under the navbar in SplitScreenReview.
+  - Added return navigation to Target ERP view.
+  - Cleaned up console SVG path warnings.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check for ui/ux bug and make sure evey button works correctly and send to the approprate tabs and first list the bugs and fix every thing one by one , after every fix make sure the fix works correctly and not introduce any new bugs".
+- **QA & Verification Status**:
+  - Re-tested with browser subagent at `http://127.0.0.1:8000/dashboard/`.
+  - Confirmed:
+    - Reason sub-filter clearing & table population: `step_311.png`
+    - Split-screen review unoccluded breadcrumb: `step_305_shot_1.png`
+    - Target ERP breadcrumb button & navigation: `step_313_shot_1.png` and `step_313.png`
+    - Browser console: 0 errors, 0 warnings.
   - Status: PASS.
 
 

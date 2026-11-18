@@ -99,7 +99,7 @@ export const InvoiceQueue: React.FC<InvoiceQueueProps> = ({
   };
 
   const filteredInvoices = invoices.filter((inv) => {
-    if (categoryFilter !== 'ALL') {
+    if (selectedFilter === 'ESCALATED' && categoryFilter !== 'ALL') {
       if (inv.escalation_category !== categoryFilter) return false;
     }
     return true;
@@ -120,7 +120,10 @@ export const InvoiceQueue: React.FC<InvoiceQueueProps> = ({
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => onFilterChange(tab.id)}
+              onClick={() => {
+                setCategoryFilter('ALL');
+                onFilterChange(tab.id);
+              }}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                 selectedFilter === tab.id
                   ? 'bg-indigo-600 text-white shadow-md'

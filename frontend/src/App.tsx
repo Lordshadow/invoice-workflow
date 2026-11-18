@@ -144,6 +144,17 @@ export function App() {
     setSelectedInvoiceDetail(null);
   };
 
+  // Filter change from table pills (Two-way tab & filter synchronization)
+  const handleQueueFilterChange = (filter: string) => {
+    setSelectedFilter(filter);
+    if (filter === 'ESCALATED') {
+      setCurrentTab('escalated');
+    } else {
+      setCurrentTab('queue');
+    }
+    setSelectedInvoiceDetail(null);
+  };
+
   // Successful upload
   const handleUploadSuccess = (res: ProcessInvoiceResult) => {
     loadData();
@@ -188,7 +199,7 @@ export function App() {
               onInvoiceUpdated={handleInvoiceUpdated}
             />
           ) : currentTab === 'target_erp' ? (
-            <TargetERPViewer />
+            <TargetERPViewer onBack={() => handleTabChange('queue')} />
           ) : (
             <>
               {/* TIER 1 & 2: Top Metric Cards (Total, Ingestion Spline, Human Review Rate, Velocity) */}
@@ -207,7 +218,7 @@ export function App() {
                 onSelectInvoice={handleSelectInvoice}
                 onRefresh={loadData}
                 selectedFilter={selectedFilter}
-                onFilterChange={setSelectedFilter}
+                onFilterChange={handleQueueFilterChange}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
               />
