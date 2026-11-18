@@ -14,6 +14,7 @@ import type {
   EscalationStats, 
   InvoiceDetail, 
   InvoiceSummary, 
+  PipelineProcessState,
   ProcessInvoiceResult, 
   UserSession 
 } from './types/invoice';
@@ -71,6 +72,14 @@ export function App() {
 
   // Upload Modal State
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
+
+  // Live Pipeline Processing Execution State on Hero Wave
+  const [pipelineProcess, setPipelineProcess] = useState<PipelineProcessState>({
+    isActive: false,
+    currentStage: 0,
+    stageProgress: 0,
+    status: 'idle',
+  });
 
   // Load Invoices and Metrics
   const loadData = useCallback(async () => {
@@ -164,11 +173,115 @@ export function App() {
     setSelectedInvoiceDetail(null);
   };
 
-  // Successful upload
+  // Successful upload fallback
   const handleUploadSuccess = (res: ProcessInvoiceResult) => {
     loadData();
     if (res.invoice_id) {
       handleSelectInvoice(res.invoice_id);
+    }
+  };
+
+  // Live Multi-Stage Pipeline Execution Handler displayed directly on the Hero Wave
+  const handleStartPipelineUpload = async (
+    file: File,
+    source: string = 'manual_upload',
+    enableStp: boolean = true
+  ) => {
+    setIsUploadOpen(false);
+    setSelectedInvoiceDetail(null);
+    if (currentTab !== 'queue') {
+      setCurrentTab('queue');
+    }
+
+    const fileName = file.name;
+    const fileSizeKb = Math.round((file.size / 1024) * 10) / 10;
+
+    // Stage 0: Intake & SHA-256
+    setPipelineProcess({
+      isActive: true,
+      fileName,
+      fileSizeKb,
+      currentStage: 0,
+      stageProgress: 18,
+      status: 'running',
+      statusMessage: 'Intake: Generating SHA-256 hash & channel reception...',
+    });
+
+    const t1 = setTimeout(() => {
+      setPipelineProcess((prev) => ({
+        ...prev,
+        currentStage: 1,
+        stageProgress: 38,
+        statusMessage: 'Vision: 300 DPI rasterization, OpenCV deskewing & QR scanner...',
+      }));
+    }, 600);
+
+    const t2 = setTimeout(() => {
+      setPipelineProcess((prev) => ({
+        ...prev,
+        currentStage: 2,
+        stageProgress: 65,
+        statusMessage: 'AI Extraction: Multimodal Vision LLM field extraction & confidence scoring...',
+      }));
+    }, 1500);
+
+    const t3 = setTimeout(() => {
+      setPipelineProcess((prev) => ({
+        ...prev,
+        currentStage: 3,
+        stageProgress: 85,
+        statusMessage: 'Deterministic Validation: Checking Indian GSTINs, HSNs & line-item arithmetic...',
+      }));
+    }, 2400);
+
+    try {
+      const res = await api.uploadInvoice(file, source, enableStp);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+
+      setPipelineProcess({
+        isActive: true,
+        fileName,
+        fileSizeKb,
+        currentStage: 4,
+        stageProgress: 100,
+        status: 'completed',
+        statusMessage: res.delivered_to_target
+          ? 'Autonomous Straight-Through Processing Complete: Posted to Target ERP!'
+          : res.is_escalated
+          ? 'Validation Discrepancy: Routed to Human Maker-Checker Queue'
+          : 'Document Processed Successfully',
+        result: res,
+      });
+
+      loadData();
+    } catch (err: unknown) {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+
+      const msg = err instanceof Error ? err.message : 'Pipeline execution failed.';
+      setPipelineProcess({
+        isActive: true,
+        fileName,
+        fileSizeKb,
+        currentStage: 3,
+        stageProgress: 100,
+        status: 'error',
+        statusMessage: msg,
+        error: msg,
+      });
+    }
+  };
+
+  // Run live simulation on Hero Wave using curated B2B sample
+  const handleRunSamplePipeline = async () => {
+    try {
+      const sampleFile = await api.downloadSampleFile('02_synthetic_invoice_interstate.pdf');
+      handleStartPipelineUpload(sampleFile, 'manual_upload', true);
+    } catch (err) {
+      console.error('Failed to run sample pipeline:', err);
     }
   };
 
@@ -214,8 +327,15 @@ export function App() {
               {/* TIER 1 & 2: Top Metric Cards (Total, Ingestion Spline, Human Review Rate, Velocity) */}
               <LiquidTopCards stats={stats} onFilterClick={handleFilterClick} />
 
-              {/* TIER 3: Luminous Waveform Flow Monitor */}
-              <LiquidHeroWave stats={stats} onFilterClick={handleFilterClick} />
+              {/* TIER 3: Luminous Waveform Flow Monitor with Real-Time Pipeline Processing */}
+              <LiquidHeroWave 
+                stats={stats} 
+                onFilterClick={handleFilterClick}
+                pipelineProcess={pipelineProcess}
+                onRunSamplePipeline={handleRunSamplePipeline}
+                onSelectInvoice={handleSelectInvoice}
+                onDismissPipeline={() => setPipelineProcess({ isActive: false, currentStage: 0, stageProgress: 0, status: 'idle' })}
+              />
 
               {/* TIER 4 & 5: Middle Row (Gross Value, Precision Donut, Intake Channels, Balance, Avg Value, Exceptions) */}
               <LiquidMiddleCards stats={stats} onFilterClick={handleFilterClick} />
@@ -241,6 +361,7 @@ export function App() {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onSuccess={handleUploadSuccess}
+        onStartPipelineUpload={handleStartPipelineUpload}
       />
     </div>
   );

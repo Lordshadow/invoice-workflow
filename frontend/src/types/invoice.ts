@@ -188,3 +188,15 @@ export interface SampleInvoiceFile {
   size_kb: number;
 }
 
+export interface PipelineProcessState {
+  isActive: boolean;
+  fileName?: string;
+  fileSizeKb?: number;
+  currentStage: number; // 0: Intake, 1: Vision, 2: AI, 3: Validation, 4: Delivery
+  stageProgress: number; // 0 to 100
+  status: 'idle' | 'running' | 'completed' | 'error';
+  statusMessage?: string;
+  result?: ProcessInvoiceResult | null;
+  error?: string | null;
+}
+

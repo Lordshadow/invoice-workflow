@@ -22,6 +22,7 @@ interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (result: ProcessInvoiceResult) => void;
+  onStartPipelineUpload?: (file: File, source: string, enableStp: boolean) => void;
 }
 
 const CHANNEL_OPTIONS = [
@@ -55,6 +56,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  onStartPipelineUpload,
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [source, setSource] = useState<string>('manual_upload');
@@ -109,6 +111,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   const handleUpload = async () => {
     if (!file) return;
+
+    if (onStartPipelineUpload) {
+      const currentFile = file;
+      const currentSource = source;
+      const currentStp = enableStp;
+      resetState();
+      onStartPipelineUpload(currentFile, currentSource, currentStp);
+      return;
+    }
 
     try {
       setUploading(true);

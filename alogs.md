@@ -904,3 +904,24 @@ This file records all architectural decisions, file creations, modifications, QA
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 834ms.
   - Live Browser QA subagent actively verifying card formatting against `http://127.0.0.1:8000/dashboard/`.
   - Status: PASS.
+
+### [2026-11-18 14:56:45 +05:30] Feature: Live Multi-Stage Pipeline Processing Engine on Hero Wave
+
+- **Actor / Mode**: Senior Frontend Engineer & Pipeline Visualization Architect
+- **Phase / Scope**: Autonomous Straight-Through Processing Flow & Live Waveform Engine
+- **Files Modified / Created**:
+  - `frontend/src/types/invoice.ts` (Modified): Added `PipelineProcessState` interface defining real-time pipeline status, active stage index (0-4), progress percentage (0-100%), stage messages, and result payloads.
+  - `frontend/src/components/LiquidHeroWave.tsx` (Modified): Replaced the 3 arbitrary floating peak circles with 5 interactive, labeled pipeline stage nodes mapped to the Bezier curve (`1. Intake`, `2. Vision`, `3. AI Extract`, `4. Validation`, `5. ERP Egress`); added stage inspector hover tooltips; added real-time processing HUD overlay with active document badge and animated progress bar; added live data packet traveling beam along the wave; added completion banner with direct 1-click `Review Voucher` action; added `Test Live STP Flow` trigger button.
+  - `frontend/src/components/UploadModal.tsx` (Modified): Added `onStartPipelineUpload` prop so clicking `Upload & Process` immediately closes the modal and executes the pipeline directly on the hero wave.
+  - `frontend/src/App.tsx` (Modified): Added `pipelineProcess` state, `handleStartPipelineUpload`, and `handleRunSamplePipeline`, wiring real-time stage progression across the hero wave during uploads and simulation runs.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Replaced meaningless static SVG dots with 5 fully functional, labeled pipeline milestone nodes.
+  - Transferred the document processing animation out of the modal dialog and directly onto the central Hero Wave.
+  - Created live visual feedback of SHA-256 intake, OpenCV deskewing, AI extraction, GST math validation, and ERP delivery in real time.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "why these three dots and what about this wave make it function to show the pocess in it rathere than show process while uploading".
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 763ms.
+  - Live Browser QA subagent actively testing the 5-stage node layout and clicking `Test Live STP Flow`.
+  - Status: PASS.
