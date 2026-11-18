@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  Home, 
-  BarChart2, 
-  ShieldCheck, 
-  Users, 
-  Database, 
-  UploadCloud 
-} from 'lucide-react';
 import { Navbar } from './components/Navbar';
-import { KPICards } from './components/KPICards';
+import { LiquidBackground } from './components/LiquidBackground';
+import { LiquidDocks } from './components/LiquidDocks';
+import { LiquidTopCards } from './components/LiquidTopCards';
+import { LiquidHeroWave } from './components/LiquidHeroWave';
+import { LiquidMiddleCards } from './components/LiquidMiddleCards';
 import { InvoiceQueue } from './components/InvoiceQueue';
 import { SplitScreenReview } from './components/SplitScreenReview';
 import { TargetERPViewer } from './components/TargetERPViewer';
@@ -83,6 +79,7 @@ export function App() {
       setSelectedInvoiceDetail(detail);
     } catch (err) {
       console.error('Failed to load invoice details:', err);
+      setSelectedInvoiceDetail(null);
     }
   };
 
@@ -109,8 +106,8 @@ export function App() {
     }
   };
 
-  // Filter click from KPI cards
-  const handleKpiFilterClick = (filter: string) => {
+  // Filter click from cards
+  const handleFilterClick = (filter: string) => {
     if (filter === 'ESCALATED') {
       setCurrentTab('escalated');
       setSelectedFilter('ESCALATED');
@@ -130,143 +127,71 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen text-slate-900 flex py-6 px-4 md:px-8 selection:bg-purple-200 selection:text-purple-900">
-      {/* 3D Ambient Lighting Background Flares (Reference Image Depth) */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-200/50 rounded-full blur-3xl" />
-        <div className="absolute top-1/4 right-10 w-[32rem] h-[32rem] bg-pink-200/40 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-1/4 w-[36rem] h-[36rem] bg-orange-100/50 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 left-1/4 w-[30rem] h-[30rem] bg-blue-100/50 rounded-full blur-3xl" />
-      </div>
+    <div className="min-h-screen relative flex flex-col selection:bg-indigo-600 selection:text-white">
+      {/* 3D Iridescent Floating Spheres & Gradient Background (Matches Uploaded Image) */}
+      <LiquidBackground />
 
-      {/* Main Outer Layout: Vertical Glass Rail + Main Floating Glass Stage */}
-      <div className="relative z-10 w-full max-w-[1760px] mx-auto flex items-start gap-5">
-        {/* Left Floating Frosted Glass Rail (Matching Reference Image) */}
-        <aside className="hidden lg:flex flex-col items-center py-6 px-3 crystal-board rounded-squircle-lg shadow-crystal-board border border-white/90 sticky top-6 z-20 space-y-6">
-          {/* Logo / Home Icon Button */}
-          <button
-            onClick={() => handleTabChange('queue')}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
-              currentTab === 'queue'
-                ? 'pod-purple text-white shadow-crystal-glow-purple'
-                : 'crystal-pill text-slate-600 hover:text-indigo-900'
-            }`}
-            title="Invoice Registry"
-          >
-            <Home className="w-5 h-5" />
-          </button>
+      {/* Floating Vertical Glass Docks (Left and Right Edges from Image) */}
+      <LiquidDocks
+        currentTab={currentTab}
+        onTabChange={handleTabChange}
+        onOpenUpload={() => setIsUploadOpen(true)}
+        activeUser={activeUser}
+        onUserChange={setActiveUser}
+        escalatedCount={stats?.escalated_count ?? 0}
+      />
 
-          {/* Quick Metrics / Analytics Button */}
-          <button
-            onClick={() => handleKpiFilterClick('ALL')}
-            className="w-11 h-11 rounded-2xl crystal-pill flex items-center justify-center text-slate-600 hover:text-indigo-900 hover:bg-white/80 transition-all"
-            title="Pipeline Analytics"
-          >
-            <BarChart2 className="w-5 h-5" />
-          </button>
+      <div className="relative z-10 flex-1 flex flex-col">
+        {/* Top Navbar Header */}
+        <Navbar
+          currentTab={currentTab}
+          onTabChange={handleTabChange}
+          activeUser={activeUser}
+          onUserChange={setActiveUser}
+          onOpenUpload={() => setIsUploadOpen(true)}
+          escalatedCount={stats?.escalated_count ?? 0}
+        />
 
-          {/* Review Queue Button */}
-          <button
-            onClick={() => handleTabChange('escalated')}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all relative ${
-              currentTab === 'escalated'
-                ? 'pod-coral text-white shadow-crystal-glow-coral'
-                : 'crystal-pill text-slate-600 hover:text-indigo-900'
-            }`}
-            title="Human Review Queue"
-          >
-            <ShieldCheck className="w-5 h-5" />
-            {stats && stats.escalated_count > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
-                {stats.escalated_count}
-              </span>
-            )}
-          </button>
+        {/* Main Floating Glass Stage */}
+        <main className="flex-1 max-w-[1250px] w-full mx-auto px-4 sm:px-6 md:px-8 py-4">
+          {/* Active Split-Screen Review Workspace */}
+          {selectedInvoiceDetail ? (
+            <SplitScreenReview
+              invoice={selectedInvoiceDetail}
+              activeUser={activeUser}
+              onBack={handleCloseReview}
+              onInvoiceUpdated={handleInvoiceUpdated}
+            />
+          ) : currentTab === 'target_erp' ? (
+            <TargetERPViewer />
+          ) : (
+            <>
+              {/* TIER 1 & 2: Top Cards ("1929", Ingestion Spline, "15,7%" Dark Card, Velocity) */}
+              <LiquidTopCards stats={stats} onFilterClick={handleFilterClick} />
 
-          {/* Target ERP Database Button */}
-          <button
-            onClick={() => handleTabChange('target_erp')}
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
-              currentTab === 'target_erp'
-                ? 'pod-emerald text-white shadow-sm'
-                : 'crystal-pill text-slate-600 hover:text-indigo-900'
-            }`}
-            title="Target Company ERP Database"
-          >
-            <Database className="w-5 h-5" />
-          </button>
+              {/* TIER 3: Luminous Wave Aura Hero Banner (Iconic Wide Center Card from Image) */}
+              <LiquidHeroWave stats={stats} />
 
-          <div className="w-6 h-[1px] bg-slate-300 my-1" />
+              {/* TIER 4 & 5: Middle Row ("20,94" Value, "19,06" & "93,34" Radial Ring, Intake Bars, Arc Ring Gauge, "45,62", "41,5%") */}
+              <LiquidMiddleCards stats={stats} onFilterClick={handleFilterClick} />
 
-          {/* Upload Quick Button */}
-          <button
-            onClick={() => setIsUploadOpen(true)}
-            className="w-11 h-11 rounded-2xl pod-blue text-white shadow-crystal-glow-blue flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-            title="Ingest Voucher (PDF/Photo)"
-          >
-            <UploadCloud className="w-5 h-5" />
-          </button>
-
-          {/* Persona / User Info */}
-          <div
-            className="w-11 h-11 rounded-2xl crystal-pill flex items-center justify-center text-slate-600 font-bold text-xs"
-            title={`Active User: ${activeUser.fullName} (${activeUser.role})`}
-          >
-            <Users className="w-5 h-5 text-indigo-600" />
-          </div>
-        </aside>
-
-        {/* Center / Right Floating Glass Stage (Matching Main Board in Reference Image) */}
-        <div className="flex-1 crystal-board rounded-squircle-xl shadow-crystal-board border border-white/90 overflow-hidden flex flex-col min-h-[90vh]">
-          {/* Top Glass Navigation Bar */}
-          <Navbar
-            currentTab={currentTab}
-            onTabChange={handleTabChange}
-            activeUser={activeUser}
-            onUserChange={setActiveUser}
-            onOpenUpload={() => setIsUploadOpen(true)}
-            escalatedCount={stats?.escalated_count ?? 0}
-          />
-
-          {/* Main Stage Content */}
-          <main className="flex-1 py-4">
-            {selectedInvoiceDetail ? (
-              <SplitScreenReview
-                invoice={selectedInvoiceDetail}
-                activeUser={activeUser}
-                onBack={handleCloseReview}
-                onInvoiceUpdated={handleInvoiceUpdated}
+              {/* TIER 6: Interactive Voucher Registry Table with Search & Status Filters */}
+              <InvoiceQueue
+                invoices={invoices}
+                loading={loading}
+                onSelectInvoice={handleSelectInvoice}
+                onRefresh={loadData}
+                selectedFilter={selectedFilter}
+                onFilterChange={setSelectedFilter}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
               />
-            ) : currentTab === 'target_erp' ? (
-              <TargetERPViewer />
-            ) : (
-              <>
-                {/* Visual Analytics & Glowing Metric Pods */}
-                <KPICards 
-                  stats={stats} 
-                  onFilterClick={handleKpiFilterClick} 
-                  onOpenUpload={() => setIsUploadOpen(true)}
-                  onNavigateTab={handleTabChange}
-                />
-
-                {/* Filterable Table Registry */}
-                <InvoiceQueue
-                  invoices={invoices}
-                  loading={loading}
-                  onSelectInvoice={handleSelectInvoice}
-                  onRefresh={loadData}
-                  selectedFilter={selectedFilter}
-                  onFilterChange={setSelectedFilter}
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                />
-              </>
-            )}
-          </main>
-        </div>
+            </>
+          )}
+        </main>
       </div>
 
-      {/* Ingestion & Upload Modal */}
+      {/* Document Ingestion & Upload Modal */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
