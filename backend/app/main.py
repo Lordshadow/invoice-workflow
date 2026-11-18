@@ -1,8 +1,10 @@
 """
 Main entry point for the Invoice Processing FastAPI Application.
 """
+import asyncio
 import logging
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,13 +29,36 @@ logging.basicConfig(
 
 logger = logging.getLogger("invoice_processor.main")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI Application Lifespan: Initializes schemas & orchestrates background outbox publisher."""
+    logger.info("Starting up application lifecycle...")
+    init_db()
+    outbox_task = None
+    if getattr(settings, "ENABLE_OUTBOX_WORKER", True):
+        from backend.app.services.delivery_worker import DeliveryWorker
+        outbox_task = asyncio.create_task(DeliveryWorker.run_outbox_publisher_loop(interval_seconds=3.0))
+        logger.info("Outbox publisher background worker registered and started.")
+    yield
+    if outbox_task and not outbox_task.done():
+        logger.info("Stopping outbox publisher worker...")
+        outbox_task.cancel()
+        try:
+            await outbox_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Outbox publisher worker stopped cleanly.")
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
     description="Enterprise AI Invoice Processing & Document Intake Engine",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    lifespan=lifespan
 )
 
 # Enable CORS for frontend dashboard
@@ -62,9 +87,6 @@ async def global_exception_handler(request: Request, exc: Exception):
             }
         }
     )
-
-# Auto-initialize database tables on module load
-init_db()
 
 # Register API Routers
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)

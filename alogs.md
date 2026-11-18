@@ -1113,3 +1113,42 @@ This file records all architectural decisions, file creations, modifications, QA
   - Verified across viewports (1440x900 standard desktop, 745x900 responsive mobile/tablet).
   - Browser subagent verified clean stage nodes (overlapFound: false), active mobile drawer toggle, and smooth form scrolling.
   - Status: PASS.
+
+
+### [2026-11-18 16:32:00 +05:30] Fix: Phase 5 Relational Validation Results, Approvals, Outbox Publisher & Idempotency Safeguards
+
+- **Actor / Mode**: Senior Backend Developer & Systems Architect
+- **Phase / Scope**: Sub-Phase 5.1 (Relational Database Schema & Migrations) & Sub-Phase 5.3 (Transactional Outbox Worker)
+- **Files Modified / Created**:
+  - `backend/app/models/invoice.py` (Modified):
+    - Implemented `ValidationResult` relational model for normalized validation outcomes with foreign key `invoice_id` (CASCADE).
+    - Implemented `InvoiceApproval` relational model tracking `user_id`, `action`, `notes`, `snapshot_version`, and `timestamp`.
+    - Added `validation_results` and `approvals` relationships on `Invoice`.
+  - `backend/app/models/__init__.py` (Modified):
+    - Exported `ValidationResult` and `InvoiceApproval`.
+  - `backend/app/models/target_company.py` (Modified):
+    - Enforced non-null `supplier_gstin: Mapped[str] = mapped_column(String(50), default="", nullable=False)` to guarantee `UNIQUE (supplier_gstin, invoice_number)` constraint operates correctly for non-GST vendors where SQL NULL != NULL would otherwise bypass duplicate collision.
+  - `backend/app/routers/invoices.py` (Modified):
+    - Populated relational `ValidationResult` rows in `process_invoice` alongside the legacy JSON array.
+    - Persisted `InvoiceApproval` and `OutboxEvent(aggregate_type="invoice", event_type="INVOICE_APPROVED", status=PENDING)` inside the primary ACID transaction during automated STP qualification.
+    - Recorded `InvoiceApproval` snapshot on manual accountant approvals (`APPROVE`) and supervisor rejections (`REJECT`).
+  - `backend/app/services/delivery_worker.py` (Modified):
+    - Normalized `supplier_gstin = (invoice.supplier_gstin or "").strip().upper()` and `comp_invoice_num = invoice.invoice_number or f"UNKNOWN-{invoice.id[:8]}"`, preventing unknown number collisions between distinct vendors.
+    - Added `skip_locked=True` locking on PostgreSQL outbox polling to prevent worker race conditions.
+    - Added resilient entity re-querying on outbox processing errors to prevent `DetachedInstanceError`.
+    - Implemented asynchronous `run_outbox_publisher_loop()` for continuous background outbox event processing.
+  - `backend/app/services/invoice_state_machine.py` (Modified):
+    - Removed redundant dead `INVOICE_DELIVERED` outbox event generation.
+  - `backend/app/main.py` (Modified):
+    - Integrated FastAPI `@asynccontextmanager lifespan(app: FastAPI)` lifecycle to initialize schemas and start the outbox background worker task on startup with clean cancellation on shutdown.
+  - `backend/tests/test_database_and_lifecycle.py` (Modified):
+    - Added unit tests for relational validation results, approval tracking, outbox event polling, and unknown invoice collision prevention.
+- **What Changed**:
+  - Fully implemented Phase 5 specifications: relational normalization of validation and approval models, transactional outbox persistence during STP, non-GST idempotency guarantees in target DB, and background publisher event loop.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check phase 4 and 5 for any bugs and list them... reason and optimal fixes which will not bring any new bugs... fix it one by one and after each fix test for the system to work correctly".
+- **QA & Verification Status**:
+  - `backend/tests/test_database_and_lifecycle.py`: **26 passed, 0 failed** in 137.05s.
+  - Full regression test suites (`test_storage.py`, `test_invoice_validator.py`, `test_auth.py`, `test_bug_fixes.py`): **32 passed, 0 failed** in 14.75s.
+  - All Phase 4 & Phase 5 specifications verified with 100% test pass rate.
+  - Status: PASS.

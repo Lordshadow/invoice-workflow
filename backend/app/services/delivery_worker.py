@@ -56,16 +56,17 @@ class DeliveryWorker:
         existing_target = target_db.scalars(ref_stmt).first()
 
         # If not found by reference ID, check by business key (supplier_gstin + invoice_number)
-        # Only check business key if invoice_number is a valid, distinct identifier (not empty or UNKNOWN)
+        norm_gstin = (invoice.supplier_gstin or "").strip().upper()
         if not existing_target and invoice.invoice_number and invoice.invoice_number.strip().upper() != "UNKNOWN":
             num_match = invoice.invoice_number.strip()
-            biz_stmt = select(CompanyInvoice).where(CompanyInvoice.invoice_number == num_match)
-            if invoice.supplier_gstin and invoice.supplier_gstin.strip():
-                biz_stmt = biz_stmt.where(CompanyInvoice.supplier_gstin == invoice.supplier_gstin.strip().upper())
-            else:
-                biz_stmt = biz_stmt.where(
-                    (CompanyInvoice.supplier_gstin.is_(None)) | (CompanyInvoice.supplier_gstin == "")
+            biz_stmt = (
+                select(CompanyInvoice)
+                .where(
+                    CompanyInvoice.invoice_number == num_match,
+                    (CompanyInvoice.supplier_gstin == norm_gstin) | 
+                    ((CompanyInvoice.supplier_gstin.is_(None)) if norm_gstin == "" else False)
                 )
+            )
             existing_target = target_db.scalars(biz_stmt.limit(1)).first()
 
         if existing_target:
@@ -101,11 +102,16 @@ class DeliveryWorker:
 
         try:
             # 2. Write to Target DB in ACID transaction
+            comp_invoice_num = (
+                invoice.invoice_number.strip()
+                if (invoice.invoice_number and invoice.invoice_number.strip().upper() != "UNKNOWN")
+                else f"UNKNOWN-{invoice.id[:8]}"
+            )
             comp_inv = CompanyInvoice(
                 ext_reference_id=invoice.id,
-                supplier_gstin=invoice.supplier_gstin,
+                supplier_gstin=norm_gstin,
                 supplier_name=invoice.supplier_name or "Unknown Supplier",
-                invoice_number=invoice.invoice_number or "UNKNOWN",
+                invoice_number=comp_invoice_num,
                 invoice_date=invoice.invoice_date,
                 currency=invoice.currency,
                 subtotal=invoice.subtotal,
@@ -156,8 +162,10 @@ class DeliveryWorker:
             return True, "Delivered successfully", comp_inv
 
         except Exception as exc:
-            target_db.rollback()
-            primary_db.rollback()
+            try:
+                target_db.rollback()
+            except Exception:
+                pass
             logger.error(f"Failed to deliver invoice {invoice.id} to Target DB: {exc}", exc_info=True)
             return False, str(exc), None
 
@@ -170,20 +178,28 @@ class DeliveryWorker:
     ) -> int:
         """
         Polls pending outbox events and delivers associated approved invoices.
+        Supports SKIP LOCKED on PostgreSQL and resilient retry updates.
         Returns the count of successfully delivered events.
         """
+        from backend.app.db.session import is_sqlite_primary
+
         stmt = (
             select(OutboxEvent)
             .where(
                 OutboxEvent.status == OutboxStatus.PENDING,
                 OutboxEvent.event_type == "INVOICE_APPROVED",
             )
+            .order_by(OutboxEvent.created_at)
             .limit(batch_size)
         )
+        if not is_sqlite_primary:
+            stmt = stmt.with_for_update(skip_locked=True)
+
         events = primary_db.scalars(stmt).all()
         delivered_count = 0
 
         for evt in events:
+            evt_id = evt.id
             try:
                 payload = json.loads(evt.payload)
                 inv_id = payload.get("invoice_id")
@@ -192,14 +208,36 @@ class DeliveryWorker:
                     if ok:
                         delivered_count += 1
                     else:
-                        evt.retry_count += 1
-                        evt.error_message = msg
-                        if evt.retry_count >= 5:
-                            evt.status = OutboxStatus.FAILED
-                        primary_db.commit()
+                        current_evt = primary_db.get(OutboxEvent, evt_id)
+                        if current_evt:
+                            current_evt.retry_count += 1
+                            current_evt.error_message = msg
+                            if current_evt.retry_count >= 5:
+                                current_evt.status = OutboxStatus.FAILED
+                            primary_db.commit()
             except Exception as e:
-                evt.retry_count += 1
-                evt.error_message = str(e)
-                primary_db.commit()
+                current_evt = primary_db.get(OutboxEvent, evt_id)
+                if current_evt:
+                    current_evt.retry_count += 1
+                    current_evt.error_message = str(e)
+                    if current_evt.retry_count >= 5:
+                        current_evt.status = OutboxStatus.FAILED
+                    primary_db.commit()
 
         return delivered_count
+
+    @classmethod
+    async def run_outbox_publisher_loop(cls, interval_seconds: float = 3.0):
+        """Asynchronous background outbox event processing loop."""
+        import asyncio
+        from backend.app.db.session import SessionLocal, TargetSessionLocal
+        logger.info("Outbox publisher background worker started.")
+        while True:
+            try:
+                with SessionLocal() as primary_db, TargetSessionLocal() as target_db:
+                    delivered = cls.process_pending_outbox(primary_db, target_db, batch_size=20)
+                    if delivered > 0:
+                        logger.debug(f"Outbox worker delivered {delivered} event(s).")
+            except Exception as e:
+                logger.error(f"Error in outbox worker loop: {e}", exc_info=False)
+            await asyncio.sleep(interval_seconds)

@@ -782,5 +782,109 @@ class TestDatabaseAndLifecycle:
         assert res.status_code == 422
         assert "Cannot edit invoice in state 'APPROVED'" in res.json()["detail"]
 
+    def test_relational_validation_results_and_approvals(self, client, db_session, target_db_session):
+        """Verifies relational ValidationResult and InvoiceApproval tables (Phase 5.1)."""
+        from backend.app.models.invoice import InvoiceApproval, ValidationResult
+
+        doc = Document(source="upload", file_name="rel_test.pdf", file_path="rel.pdf", file_hash="rel_hash_1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_APPROVAL,
+            supplier_name="Vendor A",
+            supplier_gstin="33AAAAA0000A1Z5",
+            invoice_number="INV-REL-01",
+            grand_total=500.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.flush()
+
+        # Add relational validation result
+        vr = ValidationResult(
+            invoice_id=inv.id,
+            rule_name="ARITHMETIC_CHECK",
+            status="PASS"
+        )
+        db_session.add(vr)
+        db_session.commit()
+
+        # Verify ValidationResult linked
+        results = db_session.scalars(select(ValidationResult).where(ValidationResult.invoice_id == inv.id)).all()
+        assert len(results) == 1
+        assert results[0].rule_name == "ARITHMETIC_CHECK"
+        assert results[0].status == "PASS"
+
+        # Approve invoice via API
+        resp = client.post(
+            f"/api/v1/invoices/{inv.id}/approve",
+            json={
+                "actor": "auditor_bob",
+                "expected_version": 1,
+                "notes": "Relational approval verified"
+            }
+        )
+        assert resp.status_code == 200
+
+        # Verify InvoiceApproval row created
+        db_session.refresh(inv)
+        approvals = db_session.scalars(select(InvoiceApproval).where(InvoiceApproval.invoice_id == inv.id)).all()
+        assert len(approvals) == 1
+        assert approvals[0].user_id == "auditor_bob"
+        assert approvals[0].action == "APPROVE"
+        assert approvals[0].snapshot_version == 2
+        assert inv.version == 3  # Approved (v2) and Delivered (v3)
+
+    def test_outbox_publisher_processing(self, db_session, target_db_session):
+        """Verifies Outbox event polling, delivery worker processing, and retry semantics (Phase 5.3)."""
+        doc = Document(source="upload", file_name="outbox.pdf", file_path="outbox.pdf", file_hash="outbox_h1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.APPROVED,
+            supplier_name="Outbox Supplier",
+            supplier_gstin="27ABCDE1234F1Z5",
+            invoice_number="INV-OUTBOX-99",
+            grand_total=1250.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.flush()
+
+        outbox_evt = OutboxEvent(
+            aggregate_type="invoice",
+            aggregate_id=inv.id,
+            event_type="INVOICE_APPROVED",
+            payload=json.dumps({"invoice_id": inv.id}),
+            status=OutboxStatus.PENDING
+        )
+        db_session.add(outbox_evt)
+        db_session.commit()
+
+        # Process outbox events
+        delivered = DeliveryWorker.process_pending_outbox(db_session, target_db_session, batch_size=10)
+        assert delivered == 1
+
+        # Verify OutboxEvent status is PUBLISHED
+        db_session.refresh(outbox_evt)
+        assert outbox_evt.status == OutboxStatus.PUBLISHED
+
+        # Verify Invoice status is DELIVERED
+        db_session.refresh(inv)
+        assert inv.status == InvoiceStatus.DELIVERED
+
+        # Verify Target DB record exists
+        comp_inv = target_db_session.scalars(
+            select(CompanyInvoice).where(CompanyInvoice.ext_reference_id == inv.id)
+        ).first()
+        assert comp_inv is not None
+        assert comp_inv.invoice_number == "INV-OUTBOX-99"
+        assert comp_inv.grand_total == 1250.0
+
+
 
 

@@ -7,10 +7,12 @@ from backend.app.models.invoice import (
     AuditLog,
     ExtractionLog,
     Invoice,
+    InvoiceApproval,
     InvoiceLineItem,
     InvoiceStatus,
     OutboxEvent,
     OutboxStatus,
+    ValidationResult,
 )
 from backend.app.models.target_company import (
     CompanyInvoice,
@@ -25,6 +27,8 @@ __all__ = [
     "ExtractionLog",
     "OutboxEvent",
     "AuditLog",
+    "ValidationResult",
+    "InvoiceApproval",
     "InvoiceStatus",
     "OutboxStatus",
     "CompanyInvoice",

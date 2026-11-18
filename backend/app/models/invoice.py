@@ -106,6 +106,8 @@ class Invoice(Base):
     document: Mapped["Document"] = relationship("Document", back_populates="invoices")
     line_items: Mapped[List["InvoiceLineItem"]] = relationship("InvoiceLineItem", back_populates="invoice", cascade="all, delete-orphan")
     extractions: Mapped[List["ExtractionLog"]] = relationship("ExtractionLog", back_populates="invoice", cascade="all, delete-orphan")
+    validation_results: Mapped[List["ValidationResult"]] = relationship("ValidationResult", back_populates="invoice", cascade="all, delete-orphan")
+    approvals: Mapped[List["InvoiceApproval"]] = relationship("InvoiceApproval", back_populates="invoice", cascade="all, delete-orphan")
 
     # Compound index for Tier-2 business deduplication
     __table_args__ = (
@@ -175,3 +177,30 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(50), index=True)
     changes_json: Mapped[Optional[str]] = mapped_column(Text)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+
+
+class ValidationResult(Base):
+    __tablename__ = "validation_results"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    invoice_id: Mapped[str] = mapped_column(String(36), ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
+    rule_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # "PASS" or "FAIL"
+    error_details: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+
+    invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="validation_results")
+
+
+class InvoiceApproval(Base):
+    __tablename__ = "invoice_approvals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    invoice_id: Mapped[str] = mapped_column(String(36), ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # "APPROVE", "REJECT", etc.
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    snapshot_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+
+    invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="approvals")

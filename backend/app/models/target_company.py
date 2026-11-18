@@ -31,7 +31,7 @@ class CompanyInvoice(TargetBase):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     ext_reference_id: Mapped[str] = mapped_column(String(36), index=True, comment="Internal pipeline invoice_id")
 
-    supplier_gstin: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    supplier_gstin: Mapped[str] = mapped_column(String(50), default="", nullable=False)
     supplier_name: Mapped[str] = mapped_column(String(255), nullable=False)
     invoice_number: Mapped[str] = mapped_column(String(100), nullable=False)
     invoice_date: Mapped[Optional[str]] = mapped_column(String(20))

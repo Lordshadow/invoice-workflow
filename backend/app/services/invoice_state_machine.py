@@ -168,19 +168,4 @@ class InvoiceStateMachine:
                 )
                 db.add(outbox_evt)
 
-            elif target_status == InvoiceStatus.DELIVERED:
-                outbox_evt = OutboxEvent(
-                    aggregate_type="invoice",
-                    aggregate_id=invoice.id,
-                    event_type="INVOICE_DELIVERED",
-                    payload=json.dumps({
-                        "invoice_id": invoice.id,
-                        "invoice_number": invoice.invoice_number,
-                        "grand_total": invoice.grand_total,
-                        "actor": actor,
-                    }),
-                    status=OutboxStatus.PUBLISHED,
-                )
-                db.add(outbox_evt)
-
         return invoice

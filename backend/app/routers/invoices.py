@@ -19,8 +19,12 @@ from backend.app.models.invoice import (
     AuditLog,
     ExtractionLog,
     Invoice,
+    InvoiceApproval,
     InvoiceLineItem,
     InvoiceStatus,
+    OutboxEvent,
+    OutboxStatus,
+    ValidationResult,
 )
 from backend.app.models.target_company import CompanyInvoice
 from backend.app.schemas.invoice_api import (
@@ -264,6 +268,49 @@ async def process_invoice(
         normalized_payload=json.dumps(inv_model.model_dump() if inv_model else {})
     )
     db.add(ext_log)
+
+    # Persist relational ValidationResults alongside legacy JSON validation_errors
+    if ext_res.validation_passed:
+        db.add(ValidationResult(
+            invoice_id=db_invoice.id,
+            rule_name="DETERMINISTIC_RULES_PASS",
+            status="PASS",
+            error_details=None
+        ))
+    else:
+        for err in ext_res.validation_errors:
+            rule_name = err.split(":")[0].strip() if ":" in err else "GENERAL_VALIDATION_ERROR"
+            db.add(ValidationResult(
+                invoice_id=db_invoice.id,
+                rule_name=rule_name,
+                status="FAIL",
+                error_details=err
+            ))
+
+    # Persist relational Approval and Outbox Event for STP-qualified invoices
+    if decision.is_stp_eligible and initial_status == InvoiceStatus.APPROVED:
+        db.add(InvoiceApproval(
+            invoice_id=db_invoice.id,
+            user_id="system_stp",
+            action="APPROVE",
+            notes="Automated Straight-Through Processing (STP) approval",
+            snapshot_version=db_invoice.version
+        ))
+        db.add(OutboxEvent(
+            aggregate_type="invoice",
+            aggregate_id=db_invoice.id,
+            event_type="INVOICE_APPROVED",
+            payload=json.dumps({
+                "invoice_id": db_invoice.id,
+                "invoice_number": db_invoice.invoice_number,
+                "supplier_gstin": db_invoice.supplier_gstin,
+                "supplier_name": db_invoice.supplier_name,
+                "grand_total": db_invoice.grand_total,
+                "currency": db_invoice.currency,
+                "actor": "system_stp"
+            }),
+            status=OutboxStatus.PENDING
+        ))
 
     # Add Initial Audit Log
     audit = AuditLog(
@@ -928,6 +975,16 @@ def approve_invoice(
                         changes_json=json.dumps({"notes": body.notes or "Escalation adjudicated and approved by checker"})
                     )
                 )
+            # Record relational InvoiceApproval snapshot
+            primary_db.add(
+                InvoiceApproval(
+                    invoice_id=inv.id,
+                    user_id=body.actor,
+                    action="APPROVE",
+                    notes=body.notes or "Approved by accountant/checker",
+                    snapshot_version=inv.version
+                )
+            )
             primary_db.commit()
         except ConcurrencyConflictError as err:
             raise HTTPException(
@@ -1260,6 +1317,16 @@ async def reject_invoice(
             reason=str(reason),
             expected_version=expected_version,
             db=db
+        )
+        # Record relational InvoiceApproval rejection row
+        db.add(
+            InvoiceApproval(
+                invoice_id=inv.id,
+                user_id=str(actor),
+                action="REJECT",
+                notes=str(reason),
+                snapshot_version=inv.version
+            )
         )
         db.commit()
     except ConcurrencyConflictError as err:
