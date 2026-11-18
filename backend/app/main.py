@@ -3,9 +3,11 @@ Main entry point for the Invoice Processing FastAPI Application.
 """
 import logging
 import sys
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.config import settings
@@ -68,6 +70,13 @@ app.include_router(document_router, prefix=settings.API_V1_PREFIX)
 app.include_router(extraction_router, prefix=settings.API_V1_PREFIX)
 app.include_router(invoices_router, prefix=settings.API_V1_PREFIX)
 app.include_router(target_router, prefix=settings.API_V1_PREFIX)
+
+# Optional static dashboard mounting if frontend is built
+frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if frontend_dist.is_dir():
+    app.mount("/dashboard", StaticFiles(directory=str(frontend_dist), html=True), name="frontend-dashboard")
+    if (frontend_dist / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="frontend-assets")
 
 
 @app.get("/", tags=["System"])
