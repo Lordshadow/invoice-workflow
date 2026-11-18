@@ -87,7 +87,6 @@ body {
 
 /* 1. Frosted White Glass Card (Main light cards from image) */
 .liquid-card-frosted {
-  position: relative;
   background: rgba(255, 255, 255, 0.32);
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
@@ -114,7 +113,6 @@ body {
 
 /* 2. Dark Navy Frosted Glass Card (Accents "19,06", "15,7%", "20,94" from image) */
 .liquid-card-dark {
-  position: relative;
   background: rgba(18, 24, 52, 0.82);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);

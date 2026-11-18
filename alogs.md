@@ -681,28 +681,29 @@ This file records all architectural decisions, file creations, modifications, QA
   - Status: PASS.
 
 
-### [2026-11-18 11:10:00 +05:30] Elimination of Unnecessary Decorative Docks, Strict Metric Zero-Calibration & Functional Wiring
+### [2026-11-18 11:22:00 +05:30] Header Text Cleanup, Dropdown Overlay Specificity Fix & Transition Polish
 
-- **Actor / Mode**: Senior Full-Stack Engineer & UI/UX Specialist
-- **Phase / Scope**: UI Streamlining, Functional Optimization & Clean Zero-State Calibration
+- **Actor / Mode**: Senior Frontend Engineer & UI/UX Specialist
+- **Phase / Scope**: Header Refinement, Overlay Positioning & Smooth Interaction Transitions
 - **Files Modified / Created**:
-  - `frontend/src/App.tsx` (Modified): Removed floating side docks (`LiquidDocks`) containing decorative placeholder icons (flower, heart, box, play, etc.). Connected `LiquidHeroWave` and all cards to tab routing (Registry, Human Review, Target ERP Ledger).
-  - `backend/app/schemas/invoice_api.py` (Modified): Set default `avg_confidence_score = 0.0` and `zero_conflict_rate = 0.0` when zero invoices exist in database.
-  - `backend/app/routers/invoices.py` (Modified): Updated `get_escalation_stats` to return `0.0` for average confidence and conflict velocity when database contains 0 records, avoiding misleading 100% metrics in fresh environments.
-  - `frontend/src/components/LiquidHeroWave.tsx` (Modified): Calibrated all telemetry metrics (`Extraction Confidence: 0.0%`, `Arithmetic Integrity: 0.0%`, `STP Efficiency: 0%`, `Target DB: 0 Posted`, `Posted Gross Value: ₹0`). Replaced active undulating waveform with a resting flat baseline and removed floating peak dots when idle. Made metric pills interactive buttons for filtering.
-  - `frontend/src/components/LiquidTopCards.tsx` (Modified): Removed decorative non-functional `•••` dots. Calibrated velocity, review rates, and activity bars to strictly 0% when empty. Made all cards functional navigation buttons.
-  - `frontend/src/components/LiquidMiddleCards.tsx` (Modified): Removed decorative non-functional `•••` dots. Calibrated confidence radial donut gauge, concentric arc rings, and channel intake bars to strictly 0% when idle. Added functional routing to Target ERP Ledger, clean invoices, and exception queue.
-  - `frontend/dist/` (Rebuilt): Generated updated production client bundle (`tsc -b && vite build` in 621ms).
+  - `frontend/src/index.css` (Modified): Removed `position: relative` from `.liquid-card-frosted` and `.liquid-card-dark` to prevent CSS specificity conflicts that overrode utility classes like `absolute` on floating menus and popovers.
+  - `frontend/src/components/Navbar.tsx` (Modified):
+    - Removed developer text `FastAPI & Dual DB Active` from the header subtext; cleanly displaying `Pipeline Active`.
+    - Fixed Maker-Checker Persona dropdown positioning by making it an explicitly positioned floating overlay (`position: absolute`) with outside-click detection, rotating chevron indicator, and smooth scale/opacity fade transition curves (`transition-all duration-200 ease-out`).
+    - Verified that opening the persona dropdown does not deform, expand, or break the fixed slim height of the top navigation bar.
+  - `frontend/dist/` (Rebuilt): Generated updated production client bundle (`tsc -b && vite build` in 660ms).
 - **What Changed**:
-  - Removed all non-functional decorative buttons and floating sidebars, leaving only functional enterprise navigation and actions in the top navbar and cards.
-  - Strictly calibrated all meters, gauges, donut rings, and waveforms to `0` / `0.0%` in empty state.
+  - Eliminated unwanted internal developer text (`FastAPI & Dual DB Active`).
+  - Resolved the layout distortion bug where the dropdown expanded the entire navbar container.
+  - Added smooth transition animations for tab switching and dropdown open/close states.
 - **Why (Rationale & Purpose)**:
-  - Fulfills user directive: "remove all unnessay buttons from the ui and make the ui functionals and also set all the meters to 0,and how this board in the image works and why do you kept it".
+  - Fulfills user directive: "remove the pard from the first image and also fix the ui bug and also make sure to create smooth transition on the".
 - **QA & Verification Status**:
-  - Frontend compiled cleanly with zero TypeScript errors (`tsc -b && vite build`).
-  - Browser agent verified live rendering at `http://127.0.0.1:8000/dashboard/`.
-  - Screenshot verified: `final_step_33.png`.
+  - Frontend built cleanly (`tsc -b && vite build` with 0 errors).
+  - Browser agent verified open dropdown floating cleanly without navbar deformation at `http://127.0.0.1:8000/dashboard/`.
+  - Screenshot verified: `final_step_58.png`.
   - Status: PASS.
+
 
 
 
