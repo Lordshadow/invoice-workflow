@@ -47,6 +47,10 @@ export function App() {
     } catch {
       // ignore
     }
+    // Always navigate to default queue on new login
+    setCurrentTab('queue');
+    setSelectedInvoiceDetail(null);
+    setSelectedFilter('ALL');
     setActiveUser(user);
   };
 
@@ -56,6 +60,10 @@ export function App() {
       localStorage.setItem('ledgerflow_user_session', JSON.stringify(user));
     } catch {
       // ignore
+    }
+    // If switching to a non-admin user while on admin tab, reset to queue
+    if (currentTab === 'admin' && user.role !== 'ADMIN' && user.role !== 'SUPERVISOR') {
+      setCurrentTab('queue');
     }
     setActiveUser(user);
   };
@@ -67,6 +75,10 @@ export function App() {
     } catch {
       // ignore
     }
+    // Always reset navigation and filters upon sign-out
+    setCurrentTab('queue');
+    setSelectedInvoiceDetail(null);
+    setSelectedFilter('ALL');
     setActiveUser(null);
   };
 
@@ -123,6 +135,13 @@ export function App() {
       return () => clearInterval(interval);
     }
   }, [activeUser, loadData]);
+
+  // Role-Based Route Guard: If activeUser is not an Administrator, prevent access to 'admin' tab
+  useEffect(() => {
+    if (activeUser && currentTab === 'admin' && activeUser.role !== 'ADMIN' && activeUser.role !== 'SUPERVISOR') {
+      setCurrentTab('queue');
+    }
+  }, [activeUser, currentTab]);
 
   // Open invoice review
   const handleSelectInvoice = async (invoiceId: string) => {
@@ -332,7 +351,7 @@ export function App() {
             />
           ) : currentTab === 'target_erp' ? (
             <TargetERPViewer onBack={() => handleTabChange('queue')} />
-          ) : currentTab === 'admin' ? (
+          ) : currentTab === 'admin' && (activeUser.role === 'ADMIN' || activeUser.role === 'SUPERVISOR') ? (
             <AdminStaffPortal activeUser={activeUser} onBack={() => handleTabChange('queue')} />
           ) : (
             <>

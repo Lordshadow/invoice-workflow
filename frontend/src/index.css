@@ -2,7 +2,13 @@
 
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  color-scheme: dark light;
+  color-scheme: light;
+}
+
+select, option {
+  color-scheme: light;
+  background-color: #ffffff;
+  color: #0f172a;
 }
 
 * {

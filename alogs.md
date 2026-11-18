@@ -1307,3 +1307,31 @@ This file records all architectural decisions, file creations, modifications, QA
   - Live server verification via HTTP request: `POST /api/v1/auth/login` and `GET /api/v1/admin/staff` return HTTP 200 with active staff roster (4 total staff).
   - Frontend production build: **Clean compilation with 0 errors in 784ms**.
   - Status: PASS.
+
+
+### [2026-11-18 22:15:00 +05:30] Fix: Governance Role Custom Dropdown & Session Tab Navigation Guard
+
+- **Actor / Mode**: Senior Full-Stack Engineer & UI Specialist
+- **Phase / Scope**: Governance UI Polish & Session State Management
+- **Files Modified / Created**:
+  - `frontend/src/index.css` (Modified):
+    - Changed `:root` property from `color-scheme: dark light;` to strict `color-scheme: light;`.
+    - Added global `#ffffff` background and `#0f172a` text rules for `select` and `option`, preventing Chromium in dark-mode OS environments from rendering white-on-white unreadable text.
+  - `frontend/src/components/AdminStaffPortal.tsx` (Modified):
+    - Replaced the native browser `<select>` dropdown in the staff directory table with a custom Liquid Glass dropdown menu.
+    - Features color-coded role badges, high-contrast labels, role subtitles, selection checkmarks, and auto-dismissal on outside click or option selection.
+  - `frontend/src/App.tsx` (Modified):
+    - Reset `currentTab` to `'queue'` inside both `handleLogin()` and `handleLogout()`, eliminating the bug where logging in as a Manager retained the previous Admin session's `'admin'` tab.
+    - Added an automatic role guard `useEffect`: If an active user does not possess `ADMIN` or `SUPERVISOR` privileges while `currentTab === 'admin'`, the app immediately redirects them to `'queue'`.
+    - Enforced role check directly in the JSX conditional render: `currentTab === 'admin' && (activeUser.role === 'ADMIN' || activeUser.role === 'SUPERVISOR')`.
+  - `frontend/dist/` (Rebuilt):
+    - Recompiled production bundle with `tsc -b && vite build` in 1.35s.
+- **What Changed**:
+  - Resolved white-on-white text illegibility in the Governance Role dropdown.
+  - Fixed navigation state retention across user sign-outs and sign-ins so non-admin users always land on the standard Invoice Queue workspace.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "fix this ui issue and another bug if i am in the governance page in admin , when i logout from admin and then when i click login as manager, it goes to the governance page, check the bug and try to fix it".
+- **QA & Verification Status**:
+  - `backend/tests/test_auth.py`: **7 passed, 0 failed in 4.69s**.
+  - Frontend production build: **Clean compilation with 0 errors in 1.35s**.
+  - Status: PASS.

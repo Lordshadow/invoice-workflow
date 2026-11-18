@@ -19,7 +19,9 @@ import {
   User,
   Eye,
   EyeOff,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { UserSession, StaffListResponse } from '../types/invoice';
@@ -39,6 +41,17 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING_APPROVAL' | 'SUSPENDED' | 'REJECTED'>('ALL');
+
+  // Custom Role Dropdown Menu State
+  const [openRoleMenuId, setOpenRoleMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setOpenRoleMenuId(null);
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   // Register Staff Modal State
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -481,16 +494,97 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
                             Super Administrator
                           </span>
                         ) : (
-                          <select
-                            disabled={isWorking}
-                            value={staff.role}
-                            onChange={(e) => handleRoleChange(staff.id || '', e.target.value)}
-                            className="text-xs px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold cursor-pointer focus:ring-2 focus:ring-indigo-400"
-                          >
-                            <option value="ACCOUNTANT">Maker (Accountant)</option>
-                            <option value="APPROVER">Checker (Approver)</option>
-                            <option value="ADMIN">Administrator</option>
-                          </select>
+                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              disabled={isWorking}
+                              onClick={() => setOpenRoleMenuId(openRoleMenuId === (staff.id || staff.username) ? null : (staff.id || staff.username))}
+                              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-xs cursor-pointer ${
+                                staff.role === 'ADMIN'
+                                  ? 'bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200'
+                                  : staff.role === 'APPROVER'
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200'
+                                  : 'bg-indigo-100 text-indigo-900 border-indigo-300 hover:bg-indigo-200'
+                              }`}
+                            >
+                              <span>
+                                {staff.role === 'ADMIN'
+                                  ? 'Administrator'
+                                  : staff.role === 'APPROVER'
+                                  ? 'Checker (Approver)'
+                                  : 'Maker (Accountant)'}
+                              </span>
+                              <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                            </button>
+
+                            {openRoleMenuId === (staff.id || staff.username) && (
+                              <div className="absolute left-0 mt-1.5 w-56 rounded-2xl bg-white shadow-2xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                                <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-100 mb-1">
+                                  Change Governance Role
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleRoleChange(staff.id || '', 'ACCOUNTANT');
+                                    setOpenRoleMenuId(null);
+                                  }}
+                                  className={`w-full px-3 py-2 text-left text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer ${
+                                    staff.role === 'ACCOUNTANT'
+                                      ? 'bg-indigo-50 text-indigo-950 font-black'
+                                      : 'text-slate-800 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
+                                  <div className="flex-1">
+                                    <div className="font-extrabold text-slate-900">Maker (Accountant)</div>
+                                    <div className="text-[10px] text-slate-500 font-normal">Line-item editing & prep</div>
+                                  </div>
+                                  {staff.role === 'ACCOUNTANT' && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleRoleChange(staff.id || '', 'APPROVER');
+                                    setOpenRoleMenuId(null);
+                                  }}
+                                  className={`w-full px-3 py-2 text-left text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer ${
+                                    staff.role === 'APPROVER'
+                                      ? 'bg-emerald-50 text-emerald-950 font-black'
+                                      : 'text-slate-800 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+                                  <div className="flex-1">
+                                    <div className="font-extrabold text-slate-900">Checker (Approver)</div>
+                                    <div className="text-[10px] text-slate-500 font-normal">Final sign-off & ERP delivery</div>
+                                  </div>
+                                  {staff.role === 'APPROVER' && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleRoleChange(staff.id || '', 'ADMIN');
+                                    setOpenRoleMenuId(null);
+                                  }}
+                                  className={`w-full px-3 py-2 text-left text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer ${
+                                    staff.role === 'ADMIN'
+                                      ? 'bg-purple-50 text-purple-950 font-black'
+                                      : 'text-slate-800 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
+                                  <div className="flex-1">
+                                    <div className="font-extrabold text-slate-900">Administrator</div>
+                                    <div className="text-[10px] text-slate-500 font-normal">Full governance access</div>
+                                  </div>
+                                  {staff.role === 'ADMIN' && <Check className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
 
