@@ -178,3 +178,13 @@ export interface ProcessInvoiceResult {
   delivered_to_target: boolean;
   message: string;
 }
+
+export interface SampleInvoiceFile {
+  filename: string;
+  title: string;
+  description: string;
+  type: string;
+  stp_eligible: boolean;
+  size_kb: number;
+}
+

@@ -847,3 +847,23 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 569ms.
   - Status: PASS.
+
+### [2026-11-18 14:07:15 +05:30] Fix 5: Curated Sample Invoice Ingestion Integration
+
+- **Actor / Mode**: Senior Frontend Engineer & API Integration Specialist
+- **Phase / Scope**: Autonomous Ingestion Modal & Sample Testing Workflow
+- **Files Modified / Created**:
+  - `frontend/src/types/invoice.ts` (Modified): Added `SampleInvoiceFile` schema definition with fields `filename`, `title`, `description`, `type`, `stp_eligible`, and `size_kb`.
+  - `frontend/src/services/api.ts` (Modified): Added `api.getSampleInvoices()` calling `GET /api/v1/invoices/samples/list` and `api.downloadSampleFile(filename)` calling `GET /api/v1/invoices/samples/{filename}/download` returning a native browser `File` object.
+  - `frontend/src/components/UploadModal.tsx` (Modified): Added dynamic sample invoice preset cards directly beneath the dropzone, enabling users to test clean PDFs, store receipt photos, handwritten memos, and multi-page documents with 1 click without needing local disk files.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Connected orphaned backend sample invoice endpoints to frontend UI.
+  - Integrated 4 test sample presets with STP badge tags and animated loading spinners.
+  - Seamlessly populates dropzone state upon selection for immediate one-click processing.
+- **Why (Rationale & Purpose)**:
+  - Eliminates the friction where testers and auditors could not easily test OCR or straight-through processing without searching their local drive for sample PDFs.
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 561ms.
+  - Live Browser QA subagent actively verifying sample card rendering, 1-click download, and dropzone population.
+  - Status: PASS.

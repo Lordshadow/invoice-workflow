@@ -16,7 +16,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { api } from '../services/api';
-import type { ProcessInvoiceResult } from '../types/invoice';
+import type { ProcessInvoiceResult, SampleInvoiceFile } from '../types/invoice';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -63,9 +63,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [result, setResult] = useState<ProcessInvoiceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isChannelDropdownOpen, setIsChannelDropdownOpen] = useState(false);
+  const [sampleFiles, setSampleFiles] = useState<SampleInvoiceFile[]>([]);
+  const [loadingSample, setLoadingSample] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const channelDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load curated sample files when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      api.getSampleInvoices().then(setSampleFiles).catch((err) => {
+        console.error('Failed to load sample invoices:', err);
+      });
+    }
+  }, [isOpen]);
 
   // Close custom channel dropdown on click outside
   useEffect(() => {
@@ -112,11 +123,29 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
+  const handleSelectSample = async (sample: SampleInvoiceFile) => {
+    try {
+      setLoadingSample(sample.filename);
+      setError(null);
+      const downloadedFile = await api.downloadSampleFile(sample.filename);
+      setFile(downloadedFile);
+      if (sample.stp_eligible) {
+        setEnableStp(true);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load sample invoice file.';
+      setError(msg);
+    } finally {
+      setLoadingSample(null);
+    }
+  };
+
   const resetState = () => {
     setFile(null);
     setResult(null);
     setError(null);
     setIsChannelDropdownOpen(false);
+    setLoadingSample(null);
     onClose();
   };
 
@@ -292,6 +321,54 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Quick Sample Invoice Presets */}
+              {sampleFiles.length > 0 && !file && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-1">
+                    <span className="flex items-center space-x-1">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Or load a curated test sample:</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">1-click test intake</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {sampleFiles.map((s) => {
+                      const isLoadingThis = loadingSample === s.filename;
+                      return (
+                        <button
+                          key={s.filename}
+                          type="button"
+                          onClick={() => handleSelectSample(s)}
+                          disabled={loadingSample !== null}
+                          className="p-2.5 rounded-xl liquid-card-frosted border border-white/80 hover:bg-white/80 transition-all text-left group cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 flex items-center justify-between"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                              {s.title}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                              {s.type} · {s.size_kb} KB
+                            </div>
+                          </div>
+                          {isLoadingThis ? (
+                            <RotateCw className="w-3.5 h-3.5 animate-spin text-indigo-600 shrink-0" />
+                          ) : s.stp_eligible ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                              STP
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                              OCR
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Liquid Glass Configuration Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">

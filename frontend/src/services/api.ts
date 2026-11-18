@@ -10,6 +10,7 @@ import type {
   InvoiceSummary,
   LineItem,
   ProcessInvoiceResult,
+  SampleInvoiceFile,
   UserSession,
 } from '../types/invoice';
 
@@ -259,5 +260,21 @@ export const api = {
   // List Available Corporate Personas
   async listPersonas(): Promise<UserSession[]> {
     return request<UserSession[]>('/auth/users');
+  },
+
+  // Curated Sample Invoices
+  async getSampleInvoices(): Promise<SampleInvoiceFile[]> {
+    return request<SampleInvoiceFile[]>('/invoices/samples/list');
+  },
+
+  // Download Sample Invoice as File/Blob
+  async downloadSampleFile(filename: string): Promise<File> {
+    const res = await fetch(`${BASE_URL}/invoices/samples/${encodeURIComponent(filename)}/download`);
+    if (!res.ok) {
+      throw new ApiError(res.status, `Failed to download sample file ${filename}`);
+    }
+    const blob = await res.blob();
+    const mimeType = filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
+    return new File([blob], filename, { type: mimeType });
   },
 };
