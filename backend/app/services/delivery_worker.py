@@ -59,14 +59,16 @@ class DeliveryWorker:
         norm_gstin = (invoice.supplier_gstin or "").strip().upper()
         if not existing_target and invoice.invoice_number and invoice.invoice_number.strip().upper() != "UNKNOWN":
             num_match = invoice.invoice_number.strip()
-            biz_stmt = (
-                select(CompanyInvoice)
-                .where(
+            if norm_gstin == "":
+                biz_stmt = select(CompanyInvoice).where(
                     CompanyInvoice.invoice_number == num_match,
-                    (CompanyInvoice.supplier_gstin == norm_gstin) | 
-                    ((CompanyInvoice.supplier_gstin.is_(None)) if norm_gstin == "" else False)
+                    (CompanyInvoice.supplier_gstin == "") | (CompanyInvoice.supplier_gstin.is_(None))
                 )
-            )
+            else:
+                biz_stmt = select(CompanyInvoice).where(
+                    CompanyInvoice.invoice_number == num_match,
+                    CompanyInvoice.supplier_gstin == norm_gstin
+                )
             existing_target = target_db.scalars(biz_stmt.limit(1)).first()
 
         if existing_target:
@@ -93,8 +95,7 @@ class DeliveryWorker:
                     OutboxEvent.status == OutboxStatus.PENDING,
                 )
             )
-            pending_outbox = primary_db.scalars(outbox_stmt).first()
-            if pending_outbox:
+            for pending_outbox in primary_db.scalars(outbox_stmt).all():
                 pending_outbox.status = OutboxStatus.PUBLISHED
 
             primary_db.commit()
@@ -154,8 +155,7 @@ class DeliveryWorker:
                     OutboxEvent.status == OutboxStatus.PENDING,
                 )
             )
-            pending_outbox = primary_db.scalars(outbox_stmt).first()
-            if pending_outbox:
+            for pending_outbox in primary_db.scalars(outbox_stmt).all():
                 pending_outbox.status = OutboxStatus.PUBLISHED
 
             primary_db.commit()
@@ -203,18 +203,27 @@ class DeliveryWorker:
             try:
                 payload = json.loads(evt.payload)
                 inv_id = payload.get("invoice_id")
-                if inv_id:
-                    ok, msg, _ = cls.deliver_invoice(inv_id, primary_db, target_db)
-                    if ok:
-                        delivered_count += 1
-                    else:
-                        current_evt = primary_db.get(OutboxEvent, evt_id)
-                        if current_evt:
-                            current_evt.retry_count += 1
-                            current_evt.error_message = msg
-                            if current_evt.retry_count >= 5:
-                                current_evt.status = OutboxStatus.FAILED
-                            primary_db.commit()
+                if not inv_id:
+                    current_evt = primary_db.get(OutboxEvent, evt_id)
+                    if current_evt:
+                        current_evt.retry_count += 1
+                        current_evt.error_message = "Missing invoice_id in outbox payload"
+                        if current_evt.retry_count >= 5:
+                            current_evt.status = OutboxStatus.FAILED
+                        primary_db.commit()
+                    continue
+
+                ok, msg, _ = cls.deliver_invoice(inv_id, primary_db, target_db)
+                if ok:
+                    delivered_count += 1
+                else:
+                    current_evt = primary_db.get(OutboxEvent, evt_id)
+                    if current_evt:
+                        current_evt.retry_count += 1
+                        current_evt.error_message = msg
+                        if current_evt.retry_count >= 5:
+                            current_evt.status = OutboxStatus.FAILED
+                        primary_db.commit()
             except Exception as e:
                 current_evt = primary_db.get(OutboxEvent, evt_id)
                 if current_evt:

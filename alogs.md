@@ -1152,3 +1152,33 @@ This file records all architectural decisions, file creations, modifications, QA
   - Full regression test suites (`test_storage.py`, `test_invoice_validator.py`, `test_auth.py`, `test_bug_fixes.py`): **32 passed, 0 failed** in 14.75s.
   - All Phase 4 & Phase 5 specifications verified with 100% test pass rate.
   - Status: PASS.
+
+
+### [2026-11-18 19:55:00 +05:30] Fix: Frontend Bug Hunt, Date Input ISO Normalization & Processed Value Card Polish
+
+- **Actor / Mode**: Senior Frontend Engineer & QA Specialist
+- **Phase / Scope**: Phase 6 & Phase 7 — User Interface, Maker-Checker Governance & Polish
+- **Files Modified / Created**:
+  - `frontend/src/components/InvoiceEditor.tsx` (Modified):
+    - Added `formatToIsoDate(dateStr)` helper to normalize Indian dates (`DD-MM-YYYY`, `DD/MM/YYYY`, ISO with timestamps) into strict `YYYY-MM-DD` for HTML5 `<input type="date">`, eliminating empty placeholder defaults (`dd-mm-yyyy`).
+    - Handled `cess` tax field in form state and updates.
+  - `frontend/src/components/LiquidMiddleCards.tsx` (Modified):
+    - Removed native browser `title="View Posted Invoices in Destination ERP Ledger"` attribute on the Processed Value card, preventing ugly black tooltip collision boxes on hover.
+    - Upgraded `ERP Egress` badge contrast with `text-emerald-300 font-bold bg-emerald-500/25 border border-emerald-400/40 shadow-xs` for sharp readability against dark backgrounds.
+  - `frontend/src/components/SplitScreenReview.tsx` (Modified):
+    - Included `cess` in correction payload submission.
+  - `frontend/dist/` (Rebuilt):
+    - Recompiled production bundle cleanly with `tsc -b && vite build` in 805ms.
+- **What Changed**:
+  - Resolved date picker blank initialization when backend extracts Indian formatted dates.
+  - Removed disruptive native browser tooltip rectangle over the Processed Value card.
+  - Retained full Indian numbering comma formatting (`₹36,891.20`, `₹28,709.40`) across all metric cards and ledger tables.
+  - Verified live 5-stage hero wave with interactive stage nodes (`Intake`, `Vision`, `AI Extract`, `Validation`, `ERP Egress`) and sample pipeline runner.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check for frontend bugs" and user-attached UI defect screenshots.
+- **QA & Verification Status**:
+  - Comprehensive browser testing executed via subagent `24adf7f1-c081-46da-8ae5-befe4c15257b`.
+  - Tested: Table search filtering, Status tabs, Maker-Checker governance, Split-Screen Line Item editing and auto-sync, Ingest modal channel switcher & STP toggle, and Target ERP Ledger line-item drawer expansion.
+  - Live backend seeded with 2 active vouchers (`DELIVERED` and `PENDING_APPROVAL`).
+  - Status: PASS.
+

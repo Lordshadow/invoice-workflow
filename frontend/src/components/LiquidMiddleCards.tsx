@@ -65,12 +65,11 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
       {/* CARD 1: Cumulative Gross Value */}
       <div 
         onClick={() => onFilterClick && onFilterClick('TARGET_ERP')}
-        title="View Posted Invoices in Destination ERP Ledger"
-        className="md:col-span-4 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-emerald-400/50 transition-all"
+        className="md:col-span-4 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-emerald-400/50 transition-all group"
       >
         <div className="flex items-center justify-between text-xs text-slate-300">
-          <span className="font-bold text-[11px] uppercase tracking-wider">Processed Value</span>
-          <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/20 px-2 py-0.5 rounded-full">
+          <span className="font-bold text-[11px] uppercase tracking-wider text-slate-300">Processed Value</span>
+          <span className="text-[10px] text-emerald-300 font-bold bg-emerald-500/25 border border-emerald-400/40 px-2.5 py-0.5 rounded-full shadow-xs">
             ERP Egress
           </span>
         </div>

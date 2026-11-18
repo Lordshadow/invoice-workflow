@@ -885,6 +885,127 @@ class TestDatabaseAndLifecycle:
         assert comp_inv.invoice_number == "INV-OUTBOX-99"
         assert comp_inv.grand_total == 1250.0
 
+    def test_preview_and_file_head_request_support(self, client, db_session):
+        """Verifies HEAD method support on /preview and /file for instant pagination metadata without 405."""
+        from backend.app.config import settings
+        import pymupdf
+        test_pdf = pymupdf.open()
+        test_pdf.new_page(width=300, height=300)
+        test_pdf.new_page(width=300, height=300)
+        pdf_bytes = test_pdf.tobytes()
+        test_pdf.close()
+
+        upload_path = settings.UPLOAD_DIR / "head_test.pdf"
+        upload_path.write_bytes(pdf_bytes)
+
+        doc = Document(source="upload", file_name="head_test.pdf", file_path=str(upload_path), file_hash="head_hash_1", file_size_bytes=len(pdf_bytes), mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.RECEIVED,
+            supplier_name="Preview Vendor",
+            invoice_number="INV-HEAD-1",
+            grand_total=100.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        # 1. HEAD on /preview returns 200 and X-Total-Pages
+        res_prev = client.head(f"/api/v1/invoices/{inv.id}/preview")
+        assert res_prev.status_code == 200
+        assert res_prev.headers.get("x-total-pages") == "2"
+
+        # 2. HEAD on /file returns 200 and Content-Length
+        res_file = client.head(f"/api/v1/invoices/{inv.id}/file")
+        assert res_file.status_code == 200
+        assert "content-length" in res_file.headers
+
+    def test_update_invoice_synchronizes_relational_validation_results(self, client, db_session):
+        """Verifies update_invoice cleans and synchronizes relational ValidationResult rows."""
+        from backend.app.models.invoice import ValidationResult
+
+        doc = Document(source="upload", file_name="val_sync.pdf", file_path="val.pdf", file_hash="val_sync_h1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_CORRECTION,
+            supplier_name="Sync Vendor",
+            supplier_gstin="27ABCDE1234F1Z5",
+            invoice_number="INV-SYNC-1",
+            subtotal=100.0,
+            grand_total=200.0,  # Intentional math mismatch
+            is_valid=False,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.flush()
+
+        # Initial failing ValidationResult
+        db_session.add(ValidationResult(invoice_id=inv.id, rule_name="MATH_ERROR", status="FAIL", error_details="Mismatch"))
+        db_session.commit()
+
+        # Edit invoice to balance math
+        res = client.put(
+            f"/api/v1/invoices/{inv.id}",
+            json={
+                "actor": "accountant_jane",
+                "expected_version": 1,
+                "subtotal": 100.0,
+                "cgst": 9.0,
+                "sgst": 9.0,
+                "igst": 0.0,
+                "cess": 0.0,
+                "round_off": 0.0,
+                "grand_total": 118.0,
+                "line_items": [
+                    {
+                        "description": "Item 1",
+                        "quantity": 1.0,
+                        "unit_price": 100.0,
+                        "discount": 0.0,
+                        "tax_rate": 18.0,
+                        "cgst_amount": 9.0,
+                        "sgst_amount": 9.0,
+                        "igst_amount": 0.0,
+                        "total_amount": 100.0
+                    }
+                ]
+            }
+        )
+        assert res.status_code == 200
+
+        # Verify ValidationResult is now PASS in relational table
+        results = db_session.scalars(select(ValidationResult).where(ValidationResult.invoice_id == inv.id)).all()
+        assert len(results) >= 1
+        assert all(r.status == "PASS" for r in results)
+
+    def test_outbox_missing_invoice_id_retry_and_fail(self, db_session, target_db_session):
+        """Verifies DeliveryWorker gracefully marks malformed outbox payloads as retry/failed."""
+        outbox_evt = OutboxEvent(
+            aggregate_type="invoice",
+            aggregate_id="non-existent",
+            event_type="INVOICE_APPROVED",
+            payload=json.dumps({}),  # Missing invoice_id
+            status=OutboxStatus.PENDING,
+            retry_count=4
+        )
+        db_session.add(outbox_evt)
+        db_session.commit()
+
+        delivered = DeliveryWorker.process_pending_outbox(db_session, target_db_session)
+        assert delivered == 0
+
+        db_session.refresh(outbox_evt)
+        assert outbox_evt.retry_count == 5
+        assert outbox_evt.status == OutboxStatus.FAILED
+        assert "Missing invoice_id" in outbox_evt.error_message
+
+
 
 
 

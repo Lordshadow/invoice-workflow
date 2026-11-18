@@ -17,7 +17,9 @@ from backend.app.models.target_company import TargetBase
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_databases():
-    """Initializes test database schemas before test run."""
+    """Initializes test database schemas before test run and disables background outbox polling in tests."""
+    from backend.app.config import settings
+    settings.ENABLE_OUTBOX_WORKER = False
     init_db()
 
 

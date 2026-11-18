@@ -752,9 +752,10 @@ def get_invoice(invoice_id: str, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/{invoice_id}/file", summary="Stream Original Invoice Document File")
+@router.api_route("/{invoice_id}/file", methods=["GET", "HEAD"], summary="Stream Original Invoice Document File")
 def get_invoice_file(
-    invoice_id: str, 
+    invoice_id: str,
+    request: Request,
     download: bool = Query(False, description="Whether to force download attachment"),
     db: Session = Depends(get_db)
 ):
@@ -763,22 +764,35 @@ def get_invoice_file(
     - Sets Content-Disposition: inline by default so browsers render the document instead of downloading.
     - Automatically converts DOCX documents to standard PDF on the fly for native browser preview.
     - Sets Content-Disposition: attachment only when download=True is explicitly passed.
+    - Supports HEAD requests and Cloud Storage abstraction downloads.
     """
     inv = db.get(Invoice, invoice_id)
     if not inv or not inv.document or not inv.document.file_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice file not found.")
 
+    storage = get_storage_provider()
     file_path = Path(inv.document.file_path)
-    if not file_path.is_file():
+    file_bytes = None
+    if file_path.is_file():
+        file_bytes = file_path.read_bytes()
+    else:
         # Fallback check in uploads or samples
         candidate_uploads = settings.UPLOAD_DIR / file_path.name
         candidate_samples = Path("samples") / file_path.name
         if candidate_uploads.is_file():
             file_path = candidate_uploads
+            file_bytes = candidate_uploads.read_bytes()
         elif candidate_samples.is_file():
             file_path = candidate_samples
+            file_bytes = candidate_samples.read_bytes()
         else:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File on disk '{file_path.name}' not found.")
+            try:
+                file_bytes = storage.download(inv.document.file_path)
+            except Exception:
+                file_bytes = None
+
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File on disk or storage '{file_path.name}' not found.")
 
     ext = file_path.suffix.lower()
     file_name = inv.document.file_name or file_path.name
@@ -796,11 +810,21 @@ def get_invoice_file(
     elif ext in (".docx", ".doc"):
         media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
+    if request.method == "HEAD":
+        return Response(
+            status_code=200,
+            media_type=media_type or "application/octet-stream",
+            headers={
+                "Content-Length": str(len(file_bytes)),
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+
     # If DOCX and not an explicit download, convert to PDF on-the-fly for native iframe preview
     if ext in (".docx", ".doc") and not download:
         try:
             import fitz
-            doc = fitz.open(str(file_path))
+            doc = fitz.open(stream=file_bytes, filetype="docx")
             pdf_bytes = doc.convert_to_pdf()
             doc.close()
             pdf_filename = f"{Path(file_name).stem}.pdf"
@@ -818,18 +842,20 @@ def get_invoice_file(
 
     disposition = "attachment" if download else "inline"
 
-    return FileResponse(
-        path=str(file_path),
+    return Response(
+        content=file_bytes,
         media_type=media_type or "application/octet-stream",
-        content_disposition_type=disposition,
-        filename=file_name,
-        headers={"Cache-Control": "public, max-age=3600"}
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{file_name}"',
+            "Cache-Control": "public, max-age=3600"
+        }
     )
 
 
-@router.get("/{invoice_id}/preview", summary="Render High-Resolution Invoice Document Preview Page")
+@router.api_route("/{invoice_id}/preview", methods=["GET", "HEAD"], summary="Render High-Resolution Invoice Document Preview Page")
 def get_invoice_preview(
     invoice_id: str,
+    request: Request,
     page: int = Query(1, ge=1, description="Page number to preview (1-indexed)"),
     db: Session = Depends(get_db)
 ):
@@ -838,32 +864,45 @@ def get_invoice_preview(
     - PDFs and DOCXs are rendered server-side via PyMuPDF for 100% reliable, plugin-free canvas rendering.
     - Image formats (JPG, PNG, WEBP) are returned directly.
     - Emits X-Total-Pages header to enable multi-page document pagination in the frontend viewer.
+    - Handles HEAD requests cleanly for instant metadata queries without rasterization overhead.
     """
     inv = db.get(Invoice, invoice_id)
     if not inv or not inv.document or not inv.document.file_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice file not found.")
 
+    storage = get_storage_provider()
     file_path = Path(inv.document.file_path)
-    if not file_path.is_file():
+    file_bytes = None
+    if file_path.is_file():
+        file_bytes = file_path.read_bytes()
+    else:
         candidate_uploads = settings.UPLOAD_DIR / file_path.name
         candidate_samples = Path("samples") / file_path.name
         if candidate_uploads.is_file():
             file_path = candidate_uploads
+            file_bytes = candidate_uploads.read_bytes()
         elif candidate_samples.is_file():
             file_path = candidate_samples
+            file_bytes = candidate_samples.read_bytes()
         else:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File on disk '{file_path.name}' not found.")
+            try:
+                file_bytes = storage.download(inv.document.file_path)
+            except Exception:
+                file_bytes = None
+
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File on disk or storage '{file_path.name}' not found.")
 
     ext = file_path.suffix.lower()
 
     # Image files (JPEG, PNG, WEBP) -> stream directly
     if ext in (".jpg", ".jpeg", ".png", ".webp"):
         media_type = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext.replace('.', '')}"
-        return FileResponse(
-            path=str(file_path),
+        return Response(
+            content=b"" if request.method == "HEAD" else file_bytes,
             media_type=media_type,
-            content_disposition_type="inline",
             headers={
+                "Content-Length": str(len(file_bytes)),
                 "X-Total-Pages": "1",
                 "Cache-Control": "public, max-age=3600",
                 "Access-Control-Expose-Headers": "X-Total-Pages"
@@ -874,17 +913,28 @@ def get_invoice_preview(
     try:
         import pymupdf
         if ext in (".docx", ".doc"):
-            raw_doc = pymupdf.open(str(file_path))
+            raw_doc = pymupdf.open(stream=file_bytes, filetype="docx")
             pdf_bytes = raw_doc.convert_to_pdf()
             raw_doc.close()
             doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
         else:
-            doc = pymupdf.open(str(file_path))
+            doc = pymupdf.open(stream=file_bytes, filetype="pdf")
 
         total_pages = len(doc)
         if total_pages == 0:
             doc.close()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document has no pages.")
+
+        if request.method == "HEAD":
+            doc.close()
+            return Response(
+                status_code=200,
+                headers={
+                    "X-Total-Pages": str(total_pages),
+                    "Cache-Control": "public, max-age=3600",
+                    "Access-Control-Expose-Headers": "X-Total-Pages"
+                }
+            )
 
         page_index = min(max(page - 1, 0), total_pages - 1)
         pdf_page = doc[page_index]
@@ -904,10 +954,9 @@ def get_invoice_preview(
         )
     except Exception as e:
         logger.error(f"Failed to generate preview for invoice {invoice_id}: {e}", exc_info=True)
-        return FileResponse(
-            path=str(file_path),
+        return Response(
+            content=b"" if request.method == "HEAD" else file_bytes,
             media_type="application/octet-stream",
-            content_disposition_type="inline",
             headers={"X-Total-Pages": "1", "Cache-Control": "no-cache", "Access-Control-Expose-Headers": "X-Total-Pages"}
         )
 
@@ -1160,6 +1209,26 @@ def update_invoice(
     is_valid, validation_errors = InvoiceValidator.validate(canonical)
     inv.is_valid = is_valid
     inv.validation_errors = json.dumps(validation_errors)
+
+    # Synchronize relational ValidationResults with latest validation outcome
+    from sqlalchemy import delete
+    db.execute(delete(ValidationResult).where(ValidationResult.invoice_id == inv.id))
+    if is_valid:
+        db.add(ValidationResult(
+            invoice_id=inv.id,
+            rule_name="DETERMINISTIC_RULES_PASS",
+            status="PASS",
+            error_details=None
+        ))
+    else:
+        for err in validation_errors:
+            rule_name = err.split(":")[0].strip() if ":" in err else "GENERAL_VALIDATION_ERROR"
+            db.add(ValidationResult(
+                invoice_id=inv.id,
+                rule_name=rule_name,
+                status="FAIL",
+                error_details=err
+            ))
 
     # Re-evaluate business deduplication on updated fields
     dup_type, existing_dup = DeduplicationService.check_business_duplicate(

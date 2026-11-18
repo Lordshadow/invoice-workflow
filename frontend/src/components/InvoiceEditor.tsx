@@ -24,6 +24,30 @@ interface InvoiceEditorProps {
   rejecting: boolean;
 }
 
+// Format date string to strict ISO YYYY-MM-DD for HTML5 <input type="date">
+const formatToIsoDate = (dateStr: string | null | undefined): string => {
+  if (!dateStr) return '';
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+    return trimmed.split('T')[0];
+  }
+  const dmyMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+  return trimmed;
+};
+
 export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
   invoice,
   activeUser,
@@ -38,7 +62,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
   const [supplierName, setSupplierName] = useState(invoice.supplier_name || '');
   const [supplierGstin, setSupplierGstin] = useState(invoice.supplier_gstin || '');
   const [invoiceNumber, setInvoiceNumber] = useState(invoice.invoice_number || '');
-  const [invoiceDate, setInvoiceDate] = useState(invoice.invoice_date || '');
+  const [invoiceDate, setInvoiceDate] = useState(formatToIsoDate(invoice.invoice_date));
   const [currency, setCurrency] = useState(invoice.currency || 'INR');
   const [placeOfSupply, setPlaceOfSupply] = useState(invoice.place_of_supply || '');
 
@@ -66,6 +90,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
   const [cgst, setCgst] = useState(invoice.cgst || 0);
   const [sgst, setSgst] = useState(invoice.sgst || 0);
   const [igst, setIgst] = useState(invoice.igst || 0);
+  const [cess, setCess] = useState(invoice.cess || 0);
   const [roundOff, setRoundOff] = useState(invoice.round_off || 0);
   const [grandTotal, setGrandTotal] = useState(invoice.grand_total || 0);
 
@@ -79,7 +104,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     setSupplierName(invoice.supplier_name || '');
     setSupplierGstin(invoice.supplier_gstin || '');
     setInvoiceNumber(invoice.invoice_number || '');
-    setInvoiceDate(invoice.invoice_date || '');
+    setInvoiceDate(formatToIsoDate(invoice.invoice_date));
     setCurrency(invoice.currency || 'INR');
     setPlaceOfSupply(invoice.place_of_supply || '');
     setLineItems(invoice.line_items.map((it) => ({ ...it })));
@@ -87,6 +112,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     setCgst(invoice.cgst || 0);
     setSgst(invoice.sgst || 0);
     setIgst(invoice.igst || 0);
+    setCess(invoice.cess || 0);
     setRoundOff(invoice.round_off || 0);
     setGrandTotal(invoice.grand_total || 0);
   }, [invoice]);
@@ -99,7 +125,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     const computedLineIgst = lineItems.reduce((acc, it) => acc + (Number(it.igst_amount) || 0), 0);
     const computedLineTaxes = computedLineCgst + computedLineSgst + computedLineIgst;
 
-    const headerTaxSum = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0);
+    const headerTaxSum = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0) + (Number(cess) || 0);
     const taxSum = headerTaxSum > 0 ? headerTaxSum : computedLineTaxes;
     const computedGrandTotal = computedItemsSubtotal + taxSum + (Number(roundOff) || 0);
 
@@ -685,6 +711,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
                   cgst,
                   sgst,
                   igst,
+                  cess,
                   round_off: roundOff,
                   grand_total: grandTotal,
                   line_items: lineItems,

@@ -86,6 +86,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
         cgst: updates.cgst,
         sgst: updates.sgst,
         igst: updates.igst,
+        cess: updates.cess,
         round_off: updates.round_off,
         grand_total: updates.grand_total,
         line_items: updates.line_items,

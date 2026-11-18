@@ -75,6 +75,12 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-20b").strip()
     )
 
+    # 6. Storage & Outbox Background Worker Configuration ("Host Anywhere")
+    STORAGE_PROVIDER: str = Field(default_factory=lambda: os.getenv("STORAGE_PROVIDER", "local").strip())
+    GCS_BUCKET_NAME: str = Field(default_factory=lambda: os.getenv("GCS_BUCKET_NAME", "invoice-processing-bucket").strip())
+    S3_BUCKET_NAME: str = Field(default_factory=lambda: os.getenv("S3_BUCKET_NAME", "invoices").strip())
+    ENABLE_OUTBOX_WORKER: bool = Field(default_factory=lambda: os.getenv("ENABLE_OUTBOX_WORKER", "true").lower() in ("true", "1", "yes"))
+
 
 settings = Settings()
 
