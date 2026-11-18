@@ -1,14 +1,29 @@
 @import "tailwindcss";
 
-:root {
+:root, html, body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  color-scheme: light;
+  color-scheme: light !important;
+  forced-color-adjust: none !important;
+  -webkit-forced-color-adjust: none !important;
+}
+
+/* Universal Light Controls Lock: Prevents OS dark mode from inverting form controls */
+input, select, textarea, button, option, optgroup {
+  color-scheme: light !important;
+  forced-color-adjust: none !important;
+  -webkit-forced-color-adjust: none !important;
 }
 
 select, option {
-  color-scheme: light;
-  background-color: #ffffff;
-  color: #0f172a;
+  color-scheme: light !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none !important;
+  color-scheme: light !important;
+  cursor: pointer;
 }
 
 * {

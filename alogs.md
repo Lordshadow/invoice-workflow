@@ -1335,3 +1335,26 @@ This file records all architectural decisions, file creations, modifications, QA
   - `backend/tests/test_auth.py`: **7 passed, 0 failed in 4.69s**.
   - Frontend production build: **Clean compilation with 0 errors in 1.35s**.
   - Status: PASS.
+
+
+### [2026-11-18 22:20:00 +05:30] Fix: Universal Light Mode Lock Against OS and Browser Auto-Dark Inversion
+
+- **Actor / Mode**: Senior Frontend Engineer & UI Specialist
+- **Phase / Scope**: Universal Cross-Platform Styling & Theme Fidelity
+- **Files Modified / Created**:
+  - `frontend/index.html` (Modified):
+    - Added `<meta name="color-scheme" content="light" />` and `<meta name="supported-color-schemes" content="light" />` in document `<head>`.
+    - Added `<html lang="en" class="light" style="color-scheme: light;">` and `<meta name="theme-color" content="#96a5c6" />`.
+    - Signals to Chromium, Safari, and WebKit that the document exclusively targets the custom light Liquid Glass aesthetic.
+  - `frontend/src/index.css` (Modified):
+    - Enforced `color-scheme: light !important;`, `forced-color-adjust: none !important;`, and `-webkit-forced-color-adjust: none !important;` across `:root`, `html`, `body`, and all form controls (`input`, `select`, `textarea`, `button`, `option`, `optgroup`).
+    - Added `color-scheme: light !important;` and pointer styling to `input[type="date"]::-webkit-calendar-picker-indicator`.
+  - `frontend/dist/` (Rebuilt):
+    - Recompiled production bundle with `tsc -b && vite build` in 450ms.
+- **What Changed**:
+  - Hardened the entire application against browser-forced dark-mode heuristics, OS high-contrast auto-darkening, or device color-scheme overrides, guaranteeing the exact iridescent Liquid Glass appearance on every machine.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "and also make this change,irrespectice of the light and dark mode the application need to exactly like it".
+- **QA & Verification Status**:
+  - Frontend build: **Clean compilation with 0 errors in 450ms**.
+  - Status: PASS.
