@@ -780,3 +780,19 @@ This file records all architectural decisions, file creations, modifications, QA
 
 
 
+
+### [2026-11-18 14:02:00 +05:30] Fix 1: Corporate Persona LocalStorage Persistence Synchronization
+
+- **Actor / Mode**: Senior Frontend Engineer & QA Specialist
+- **Phase / Scope**: Session Management & Maker-Checker Persona State Persistence
+- **Files Modified / Created**:
+  - `frontend/src/App.tsx` (Modified): Added `handleUserChange` handler that persists `ledgerflow_user_session` to `localStorage` whenever a persona is selected from the Navbar dropdown, ensuring page reloads preserve the active role.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Created `handleUserChange` wrapping `localStorage.setItem('ledgerflow_user_session', JSON.stringify(user))` alongside `setActiveUser(user)`.
+  - Replaced direct `setActiveUser` prop callback on `<Navbar onUserChange={handleUserChange} />`.
+- **Why (Rationale & Purpose)**:
+  - Fixes defect where switching personas (e.g. from Accountant to Approver) was volatile and lost on refresh.
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 781ms.
+  - Status: PASS.

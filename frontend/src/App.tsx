@@ -41,6 +41,15 @@ export function App() {
     setActiveUser(user);
   };
 
+  const handleUserChange = (user: UserSession) => {
+    try {
+      localStorage.setItem('ledgerflow_user_session', JSON.stringify(user));
+    } catch {
+      // ignore
+    }
+    setActiveUser(user);
+  };
+
   const handleLogout = () => {
     try {
       localStorage.removeItem('ledgerflow_user_session');
@@ -180,7 +189,7 @@ export function App() {
           currentTab={currentTab}
           onTabChange={handleTabChange}
           activeUser={activeUser}
-          onUserChange={setActiveUser}
+          onUserChange={handleUserChange}
           onOpenUpload={() => setIsUploadOpen(true)}
           escalatedCount={stats?.escalated_count ?? 0}
           onLogout={handleLogout}
