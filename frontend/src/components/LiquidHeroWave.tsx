@@ -155,7 +155,7 @@ export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({ stats, onFilterC
           </div>
           <div className="flex justify-between items-center text-slate-600 space-x-3">
             <span>Posted Gross Value:</span>
-            <span className="font-bold text-blue-800 font-mono">₹{deliveredGross.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+            <span className="font-bold text-blue-800 font-mono">₹{deliveredGross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
       </div>

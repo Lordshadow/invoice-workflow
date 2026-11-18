@@ -884,3 +884,23 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 583ms.
   - Status: PASS.
+
+### [2026-11-18 14:18:00 +05:30] Fix: Indian Currency Amount Comma Numbering Formatting
+
+- **Actor / Mode**: Senior Frontend Engineer & Financial Localization Specialist
+- **Phase / Scope**: Financial KPI Metrics & Indian Numbering System Formatting
+- **Files Modified / Created**:
+  - `frontend/src/components/LiquidMiddleCards.tsx` (Modified): Replaced `formatGrossValue` (which arbitrarily divided values over 1,000 by 1,000 to display `"Thousand"` or `"INR"`) with `formatIndianCurrency` enforcing standard Indian numbering system (`en-IN`) comma grouping (first comma at hundreds, then every two digits: thousands, lakhs, crores) with two decimal places (paise). Updated `totalGross`, `deliveredGross`, and `avgVal` displays.
+  - `frontend/src/components/LiquidHeroWave.tsx` (Modified): Enforced `minimumFractionDigits: 2, maximumFractionDigits: 2` on `deliveredGross` for consistent paise rendering.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Eliminated `"₹28.71 Thousand"` and replaced with `"₹28,709.40"`.
+  - Replaced subtext `"(₹28,709)"` with exact matching currency `"1 Settled (₹28,709.40)"`.
+  - Replaced Average Voucher Value `"₹28.71 Thousand"` with `"₹28,709.40"`.
+  - Maintained dynamic Indian denomination labels (`Cr` / `Lakh`) exclusively for amounts exceeding ₹1,00,000 or ₹1,00,00,000.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "fix this one, can u see how the amout is being shown, make sure it shows correct amount in comma like in indian amount system".
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 834ms.
+  - Live Browser QA subagent actively verifying card formatting against `http://127.0.0.1:8000/dashboard/`.
+  - Status: PASS.

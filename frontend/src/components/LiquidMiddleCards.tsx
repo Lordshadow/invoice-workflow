@@ -24,22 +24,23 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
     ? (((total - mathErrors) / total) * 100).toFixed(1) 
     : '0.0';
 
-  // Format Gross Value
-  const formatGrossValue = (val: number) => {
-    if (val >= 10000000) {
-      return { num: (val / 10000000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'Crores' };
-    }
-    if (val >= 100000) {
-      return { num: (val / 100000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'Lakhs' };
-    }
-    if (val >= 1000) {
-      return { num: (val / 1000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'Thousand' };
-    }
-    return { num: val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'INR' };
+  // Format Currency Amount with Indian Numbering System (Commas at hundreds, then every two digits: Lakhs & Crores)
+  const formatIndianCurrency = (val: number) => {
+    return (val || 0).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
-  const grossFormatted = formatGrossValue(totalGross);
-  const avgFormatted = formatGrossValue(avgVal);
+  const getIndianDenomination = (val: number) => {
+    if (val >= 10000000) {
+      return `(${(val / 10000000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr)`;
+    }
+    if (val >= 100000) {
+      return `(${(val / 100000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Lakh)`;
+    }
+    return '';
+  };
 
   // Channels count & breakdown
   const channelBreakdown = stats?.channel_breakdown ?? {};
@@ -75,12 +76,17 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
         </div>
 
         <div>
-          <div className="text-3xl font-extrabold text-white tracking-tight">
-            ₹{grossFormatted.num} <span className="text-xs font-normal text-slate-300">{grossFormatted.unit}</span>
+          <div className="text-3xl font-extrabold text-white tracking-tight flex items-baseline space-x-2">
+            <span>₹{formatIndianCurrency(totalGross)}</span>
+            {getIndianDenomination(totalGross) && (
+              <span className="text-xs font-semibold text-slate-300">
+                {getIndianDenomination(totalGross)}
+              </span>
+            )}
           </div>
           <div className="flex items-center text-[11px] text-emerald-400 font-bold mt-1">
             <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />
-            <span>{delivered} Settled (₹{deliveredGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
+            <span>{delivered} Settled (₹{formatIndianCurrency(deliveredGross)})</span>
           </div>
         </div>
 
@@ -269,9 +275,13 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
 
         <div className="flex items-baseline space-x-2">
           <span className="text-3xl font-extrabold text-slate-800">
-            ₹{avgFormatted.num}
+            ₹{formatIndianCurrency(avgVal)}
           </span>
-          <span className="text-xs text-slate-500">{avgFormatted.unit}</span>
+          {getIndianDenomination(avgVal) && (
+            <span className="text-xs font-semibold text-slate-500">
+              {getIndianDenomination(avgVal)}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center space-x-2 text-[10px] text-slate-500 font-bold">
