@@ -10,7 +10,9 @@ import {
   ChevronDown,
   Check,
   LogOut,
-  Sparkles
+  Sparkles,
+  Menu,
+  X
 } from 'lucide-react';
 import type { UserSession } from '../types/invoice';
 
@@ -61,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
@@ -294,8 +297,84 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Ingest Document</span>
           </button>
+
+          {/* Mobile / Tablet Menu Hamburger Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className="md:hidden liquid-pill p-2 rounded-xl text-slate-700 hover:text-indigo-900 border border-white/80 cursor-pointer shadow-xs active:scale-95"
+            title="Toggle Navigation Menu"
+          >
+            {isMobileMenuOpen ? <X className="w-4 h-4 text-slate-800" /> : <Menu className="w-4 h-4 text-slate-800" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile / Tablet Responsive Drawer Menu (Accessible below 768px) */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden max-w-[1720px] mx-auto mt-2 p-3 rounded-2xl liquid-dropdown-glass border border-white/80 shadow-2xl space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-2 py-0.5">
+            Navigation Views
+          </div>
+          <button
+            onClick={() => {
+              onTabChange('queue');
+              setIsMobileMenuOpen(false);
+            }}
+            className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
+              currentTab === 'queue'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-700 hover:bg-white/60 bg-white/30'
+            }`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <FileCheck2 className="w-4 h-4" />
+              <span>Invoice Registry</span>
+            </div>
+            <span className="text-[10px] opacity-80 font-normal">All vouchers</span>
+          </button>
+
+          <button
+            onClick={() => {
+              onTabChange('escalated');
+              setIsMobileMenuOpen(false);
+            }}
+            className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
+              currentTab === 'escalated'
+                ? 'bg-amber-500 text-white shadow-md'
+                : 'text-slate-700 hover:bg-white/60 bg-white/30'
+            }`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <ShieldCheck className="w-4 h-4" />
+              <span>Human Review Queue</span>
+            </div>
+            {escalatedCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-white text-amber-800 font-extrabold shadow-xs">
+                {escalatedCount} Action Needed
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              onTabChange('target_erp');
+              setIsMobileMenuOpen(false);
+            }}
+            className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
+              currentTab === 'target_erp'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-slate-700 hover:bg-white/60 bg-white/30'
+            }`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <Database className="w-4 h-4" />
+              <span>Target ERP Ledger</span>
+            </div>
+            <span className="text-[10px] opacity-80 font-normal">ACID Egress</span>
+          </button>
+        </div>
+      )}
     </header>
   );
 };

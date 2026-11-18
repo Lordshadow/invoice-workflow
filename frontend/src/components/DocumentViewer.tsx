@@ -88,8 +88,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   return (
     <div className="flex flex-col h-full rounded-squircle liquid-card-frosted overflow-hidden border border-white/90 shadow-2xl min-h-0">
       {/* Top Glass Toolbar */}
-      <div className="px-4 py-3 bg-white/70 border-b border-indigo-100/70 flex items-center justify-between text-xs backdrop-blur-md">
-        <div className="flex items-center space-x-2 truncate max-w-[200px] sm:max-w-xs">
+      <div className="px-4 py-3 bg-white/70 border-b border-indigo-100/70 flex items-center justify-between text-xs backdrop-blur-md gap-2">
+        <div className="flex items-center space-x-2 min-w-0 max-w-[150px] sm:max-w-[220px] md:max-w-[280px]">
           <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 shadow-xs">
             {isImage ? <ImageIcon className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
           </div>

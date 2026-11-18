@@ -313,9 +313,9 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
         </div>
       )}
 
-      {/* Collapsible Audit Trail Drawer */}
+      {/* Collapsible Audit Trail Drawer (Constrained height with internal scroll) */}
       {showAuditTrail && (
-        <div className="max-h-60 overflow-y-auto px-5 py-3 bg-indigo-50/50 border-b border-indigo-100 divide-y divide-indigo-100 text-xs">
+        <div className="max-h-44 overflow-y-auto px-5 py-3 bg-indigo-50/70 border-b border-indigo-100 divide-y divide-indigo-100/80 text-xs shrink-0 animate-in fade-in duration-150 shadow-inner">
           <div className="font-bold text-slate-800 pb-2 flex items-center justify-between">
             <span>Event History & Immutability Ledger</span>
             <span className="text-[10px] text-slate-500 font-mono">ACID Log</span>
@@ -340,8 +340,8 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
         </div>
       )}
 
-      {/* Main Form Body */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-6">
+      {/* Main Form Body with min-h-0 for proper flex scrolling */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-6 overscroll-contain">
         {/* Header Fields Section */}
         <div>
           <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">

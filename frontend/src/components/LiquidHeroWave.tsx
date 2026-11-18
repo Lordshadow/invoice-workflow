@@ -548,21 +548,26 @@ export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({
             </div>
           </div>
         )}
+      </div>
 
-        {/* Floating Side Metrics Badge Card Inside Wave */}
-        <div className="absolute right-4 top-4 hidden md:flex flex-col space-y-1.5 p-3 rounded-2xl bg-white/70 backdrop-blur-xl border border-white/90 shadow-lg text-[11px] max-w-xs">
-          <div className="flex justify-between items-center text-slate-600 space-x-3">
-            <span>Extraction Confidence:</span>
-            <span className="font-bold text-indigo-900 font-mono">{(avgConfidence * 100).toFixed(1)}%</span>
-          </div>
-          <div className="flex justify-between items-center text-slate-600 space-x-3">
-            <span>Arithmetic Integrity:</span>
-            <span className="font-bold text-emerald-700 font-mono">{balancedRate}%</span>
-          </div>
-          <div className="flex justify-between items-center text-slate-600 space-x-3">
-            <span>Posted Gross Value:</span>
-            <span className="font-bold text-blue-800 font-mono">₹{deliveredGross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </div>
+      {/* Wave Bottom Metrics Ribbon (Unobstructed, zero collision with stage nodes) */}
+      <div className="mt-3 pt-3 border-t border-indigo-100/50 flex flex-wrap items-center justify-between text-[11px] text-slate-600 gap-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-indigo-500" />
+            <span>AI Extraction Confidence: <b className="text-slate-900 font-mono">{(avgConfidence * 100).toFixed(1)}%</b></span>
+          </span>
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>Arithmetic Integrity: <b className="text-emerald-700 font-mono">{balancedRate}% Clean</b></span>
+          </span>
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span>Target Gross Settled: <b className="text-blue-800 font-mono">₹{deliveredGross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></span>
+          </span>
+        </div>
+        <div className="text-[10px] text-slate-500 font-medium">
+          Hover stage nodes 1–5 to inspect autonomous subsystem telemetry
         </div>
       </div>
     </div>

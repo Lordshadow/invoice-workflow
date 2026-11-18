@@ -1081,3 +1081,35 @@ This file records all architectural decisions, file creations, modifications, QA
 
 
 
+
+### [2026-11-18 16:25:00 +05:30] Frontend UI/UX Refinement: Hero Wave Overlap, Mobile Navigation & Scroll Ergonomics
+
+- **Actor / Mode**: Senior Frontend Engineer & UI/UX Specialist
+- **Phase / Scope**: Split-Screen Workspace, Header Responsiveness & Wave Visualization
+- **Files Modified / Created**:
+  - `frontend/src/components/LiquidHeroWave.tsx` (Modified):
+    - Removed floating metrics card overlay from `top-4 right-4` of the wave SVG container which previously collided with Node 4 (`Validation`) and Node 5 (`ERP Egress`).
+    - Added dedicated full-width telemetry ribbon directly beneath the wave canvas displaying `AI Extraction Confidence`, `Arithmetic Integrity`, and `Target Gross Settled` with zero element occlusion.
+  - `frontend/src/components/Navbar.tsx` (Modified):
+    - Added mobile hamburger menu toggle (`md:hidden`) with interactive open/close state (`Menu` / `X` icons).
+    - Implemented slide-down liquid glass drawer for viewports `< 768px` enabling 1-tap navigation between `Invoice Registry`, `Human Review Queue`, and `Target ERP Ledger`.
+  - `frontend/src/components/InvoiceEditor.tsx` (Modified):
+    - Constrained Audit Trail drawer height to `max-h-44` with internal scrollbar and smooth animation.
+    - Added `min-h-0` and `overscroll-contain` to the main form body container, enabling smooth internal mouse wheel and touch scrolling down through all line items and financial totals without breaking page layout.
+  - `frontend/src/components/SplitScreenReview.tsx` (Modified):
+    - Anchored toast notifications cleanly to `fixed top-20 right-6 sm:right-10 z-[100]` with backdrop blur and an instant dismiss (`X`) button.
+  - `frontend/src/components/DocumentViewer.tsx` (Modified):
+    - Constrained filename container with `min-w-0 max-w-[150px] sm:max-w-[220px] md:max-w-[280px]` and CSS ellipsis truncation to prevent crowding the canvas toolbar controls.
+  - `frontend/dist/` (Rebuilt):
+    - Rebuilt production bundles via `tsc -b && vite build` (2.34s, 0 errors).
+- **What Changed**:
+  - Resolved visual overlap between hero wave stage milestone nodes and floating telemetry box.
+  - Restored full multi-tab navigation on mobile/tablet viewports via liquid glass slide-down drawer.
+  - Enabled smooth internal form scrolling in Split-Screen Review when the Audit Trail is open.
+  - Upgraded toast notifications to a high z-index non-colliding layout with instant dismissal.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "chech for further uui, frontend bugs".
+- **QA & Verification Status**:
+  - Verified across viewports (1440x900 standard desktop, 745x900 responsive mobile/tablet).
+  - Browser subagent verified clean stage nodes (overlapFound: false), active mobile drawer toggle, and smooth form scrolling.
+  - Status: PASS.

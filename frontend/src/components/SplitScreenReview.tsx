@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, AlertCircle, CheckCircle, AlertTriangle, RotateCw } from 'lucide-react';
+import { ArrowLeft, AlertCircle, CheckCircle, AlertTriangle, RotateCw, X } from 'lucide-react';
 import type { InvoiceDetail, LineItem, UserSession } from '../types/invoice';
 import { DocumentViewer } from './DocumentViewer';
 import { InvoiceEditor } from './InvoiceEditor';
@@ -137,21 +137,30 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
 
   return (
     <section className="w-full mx-auto pt-2 pb-8 animate-in fade-in duration-200">
-      {/* Toast Alert Notification */}
+      {/* Toast Alert Notification (Anchored firmly to top-right viewport at z-[100]) */}
       {toast && (
         <div
-          className={`fixed top-24 right-8 z-50 px-4 py-3 rounded-2xl liquid-modal-glass shadow-2xl border flex items-center space-x-2 text-xs font-bold animate-in fade-in slide-in-from-top-4 ${
+          className={`fixed top-20 right-6 sm:right-10 z-[100] max-w-md px-4 py-3 rounded-2xl liquid-modal-glass shadow-2xl border flex items-center justify-between space-x-3 text-xs font-bold animate-in fade-in slide-in-from-top-3 backdrop-blur-xl ${
             toast.type === 'success'
-              ? 'border-emerald-300 text-emerald-800'
-              : 'border-rose-300 text-rose-800'
+              ? 'border-emerald-300/80 bg-emerald-500/15 text-emerald-900 shadow-emerald-500/10'
+              : 'border-rose-300/80 bg-rose-500/15 text-rose-900 shadow-rose-500/10'
           }`}
         >
-          {toast.type === 'success' ? (
-            <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-600" />
-          ) : (
-            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
-          )}
-          <span>{toast.message}</span>
+          <div className="flex items-center space-x-2 min-w-0">
+            {toast.type === 'success' ? (
+              <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
+            )}
+            <span className="truncate">{toast.message}</span>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            className="p-1 rounded-lg hover:bg-black/5 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer shrink-0 ml-2"
+            title="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
