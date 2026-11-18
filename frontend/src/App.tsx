@@ -176,7 +176,9 @@ export function App() {
         />
 
         {/* Main Floating Glass Stage */}
-        <main className="flex-1 max-w-[1250px] w-full mx-auto px-4 sm:px-6 md:px-8 py-4">
+        <main className={`flex-1 w-full mx-auto px-3 sm:px-6 md:px-8 py-4 transition-all duration-300 ${
+          selectedInvoiceDetail ? 'max-w-[1800px]' : 'max-w-[1280px]'
+        }`}>
           {/* Active Split-Screen Review Workspace */}
           {selectedInvoiceDetail ? (
             <SplitScreenReview

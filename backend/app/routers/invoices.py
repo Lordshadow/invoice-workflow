@@ -511,6 +511,71 @@ def get_escalation_stats(db: Session = Depends(get_db)):
     )
 
 
+@router.get("/samples/list", summary="List Available Sample Invoice Files")
+def list_sample_files():
+    """Returns curated metadata for sample test invoices located in samples/ directory."""
+    samples_dir = Path("samples")
+    if not samples_dir.is_dir():
+        return []
+
+    meta = {
+        "02_synthetic_invoice_interstate.pdf": {
+            "title": "Interstate B2B GST Invoice (Clean PDF)",
+            "description": "100% clean digital PDF. Qualifies for autonomous Straight-Through Processing (STP).",
+            "type": "PDF",
+            "stp_eligible": True,
+        },
+        "03_synthetic_invoice_printed_photo.jpg": {
+            "title": "Printed Store Receipt (Camera Photo)",
+            "description": "Mobile camera capture with slight tilt. Exercises deskewing & OCR.",
+            "type": "JPEG",
+            "stp_eligible": False,
+        },
+        "04_synthetic_invoice_handwritten_photo.jpg": {
+            "title": "Handwritten Cash Memo (Photo)",
+            "description": "Mobile camera image of handwritten bill. Exercises AI vision extraction.",
+            "type": "JPEG",
+            "stp_eligible": False,
+        },
+        "multipage-3p-na-3.pdf": {
+            "title": "Multi-Page Corporate Invoice (3 Pages)",
+            "description": "Complex multi-page PDF invoice with table across multiple pages.",
+            "type": "PDF",
+            "stp_eligible": False,
+        },
+    }
+
+    available = []
+    for filename, info in meta.items():
+        file_path = samples_dir / filename
+        if file_path.is_file():
+            available.append({
+                "filename": filename,
+                "title": info["title"],
+                "description": info["description"],
+                "type": info["type"],
+                "stp_eligible": info["stp_eligible"],
+                "size_kb": round(file_path.stat().st_size / 1024, 1),
+            })
+    return available
+
+
+@router.get("/samples/{filename}/download", summary="Download Sample Invoice File")
+def download_sample_file(filename: str):
+    """Downloads a curated sample file from the samples directory for frontend processing."""
+    safe_name = Path(filename).name
+    file_path = Path("samples") / safe_name
+    if not file_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample invoice file not found.")
+
+    media_type = "application/pdf" if safe_name.lower().endswith(".pdf") else "image/jpeg"
+    return FileResponse(
+        path=str(file_path),
+        media_type=media_type,
+        filename=safe_name
+    )
+
+
 @router.get("/{invoice_id}", response_model=InvoiceDetailDTO, summary="Get Detailed Invoice Record")
 def get_invoice(invoice_id: str, db: Session = Depends(get_db)):
     """Retrieves full invoice details including line items, extraction logs, and audit trail."""

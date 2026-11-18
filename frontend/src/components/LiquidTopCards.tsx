@@ -17,30 +17,39 @@ export const LiquidTopCards: React.FC<LiquidTopCardsProps> = ({ stats, onFilterC
   const zeroConflictRate = total > 0 ? (stats?.zero_conflict_rate ?? 0.0) : 0.0;
 
   const rawHourly = stats?.hourly_throughput ?? [];
-  const hourlyThroughput = rawHourly.length === 7 ? rawHourly : [0, 0, 0, 0, 0, 0, 0];
+  const hourlyThroughput = Array.isArray(rawHourly) && rawHourly.length === 7 
+    ? rawHourly.map((v) => Number(v) || 0) 
+    : [0, 0, 0, 0, 0, 0, 0];
   const maxThroughput = Math.max(...hourlyThroughput, 1);
 
   // Proportions for multi-tier progress bars
-  const deliveredPct = total > 0 ? Math.round((delivered / total) * 100) : 0;
-  const cleanPct = total > 0 ? Math.round((clean / total) * 100) : 0;
-  const escalatedPct = total > 0 ? Math.round((escalated / total) * 100) : 0;
+  const deliveredPct = total > 0 ? Math.min(100, Math.round((delivered / total) * 100)) : 0;
+  const cleanPct = total > 0 ? Math.min(100, Math.round((clean / total) * 100)) : 0;
+  const escalatedPct = total > 0 ? Math.min(100, Math.round((escalated / total) * 100)) : 0;
 
-  // Generate smooth SVG curve from live 7-bucket throughput
-  const curvePoints = hourlyThroughput.map((v, i) => ({
-    x: Math.round((i / 6) * 200),
-    y: total > 0 ? Math.round(50 - (v / maxThroughput) * 35) : 55,
-  }));
+  // Generate smooth SVG curve safely
+  const curvePoints = hourlyThroughput.map((v, i) => {
+    const val = Number(v) || 0;
+    const safeMax = maxThroughput > 0 ? maxThroughput : 1;
+    const yVal = total > 0 ? Math.round(50 - (val / safeMax) * 35) : 55;
+    return {
+      x: Math.round((i / 6) * 200),
+      y: isNaN(yVal) ? 55 : yVal,
+    };
+  });
 
-  const strokePath = total > 0
-    ? `M ${curvePoints[0].x},${curvePoints[0].y} ` +
+  const hasValidPoints = curvePoints.length === 7 && curvePoints.every(p => !isNaN(p.x) && !isNaN(p.y));
+
+  const strokePath = total > 0 && hasValidPoints
+    ? `M ${curvePoints[0].x} ${curvePoints[0].y} ` +
       curvePoints.slice(1).map((p, i) => {
         const prev = curvePoints[i];
         const cpX = Math.round((prev.x + p.x) / 2);
-        return `C ${cpX},${prev.y} ${cpX},${p.y} ${p.x},${p.y}`;
+        return `C ${cpX} ${prev.y}, ${cpX} ${p.y}, ${p.x} ${p.y}`;
       }).join(' ')
-    : 'M 0,55 L 200,55';
+    : 'M 0 55 L 200 55';
 
-  const areaPath = `${strokePath} L 200,60 L 0,60 Z`;
+  const areaPath = `${strokePath} L 200 60 L 0 60 Z`;
 
   const barColors = [
     'bg-white/70',

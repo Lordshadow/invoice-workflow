@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Search, 
   Filter, 
-  ExternalLink, 
+  ArrowRight, 
   AlertCircle, 
   CheckCircle, 
   Clock, 
@@ -108,9 +108,9 @@ export const InvoiceQueue: React.FC<InvoiceQueueProps> = ({
   return (
     <section className="liquid-card-frosted p-6 mb-8 border-white/80 shadow-xl">
       {/* Table Controls Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-        {/* Status Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-white/50 border border-white/80 shadow-xs">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-5">
+        {/* Status Filter Tabs (Single clean horizontal row with smooth scroll) */}
+        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/60 border border-white/80 shadow-xs overflow-x-auto whitespace-nowrap max-w-full">
           {[
             { id: 'ALL', label: 'All Invoices' },
             { id: 'ESCALATED', label: 'Action Required' },
@@ -121,7 +121,7 @@ export const InvoiceQueue: React.FC<InvoiceQueueProps> = ({
             <button
               key={tab.id}
               onClick={() => onFilterChange(tab.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                 selectedFilter === tab.id
                   ? 'bg-indigo-600 text-white shadow-md'
                   : 'text-slate-700 hover:text-indigo-900 hover:bg-white/60'
@@ -316,10 +316,10 @@ export const InvoiceQueue: React.FC<InvoiceQueueProps> = ({
                         e.stopPropagation();
                         onSelectInvoice(inv.id);
                       }}
-                      className="px-3 py-1 rounded-xl liquid-pill text-xs font-bold text-indigo-700 hover:text-white hover:bg-indigo-600 border-white/80 transition-all flex items-center space-x-1 ml-auto"
+                      className="px-3.5 py-1.5 rounded-xl liquid-pill text-xs font-bold text-indigo-700 hover:text-white hover:bg-indigo-600 border-white/80 transition-all flex items-center space-x-1.5 ml-auto cursor-pointer shadow-xs active:scale-95"
                     >
                       <span>Review</span>
-                      <ExternalLink className="w-3 h-3" />
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </td>
                 </tr>

@@ -72,8 +72,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-xl crystal-card rounded-squircle-lg p-6 shadow-2xl border border-white/90">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xl animate-in fade-in">
+      <div className="w-full max-w-xl liquid-modal-glass p-6 sm:p-8 shadow-2xl border border-white/90">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-indigo-100">
           <div>
@@ -87,7 +87,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </div>
           <button
             onClick={resetState}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-white/60 transition-colors"
+            className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-white/60 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -113,7 +113,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   ) : (
                     <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600" />
                   )}
-                  <div className="text-xs">
+                  <div className="text-xs flex-1">
                     <div className="font-extrabold text-sm mb-1 text-slate-900">
                       {result.delivered_to_target
                         ? 'Straight-Through Processing Complete!'
@@ -122,11 +122,24 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                         : 'Document Ingested'}
                     </div>
                     <p className="text-slate-700 font-medium">{result.message}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-600 font-mono">
-                      <div>File: {result.file_name}</div>
-                      <div>Grand Total: ₹{result.grand_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                      <div>Status: {result.status}</div>
-                      <div>Duplicate Check: {result.duplicate_type}</div>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-700 font-mono bg-white/70 p-3 rounded-xl border border-white/90">
+                      <div className="truncate" title={result.file_name}>
+                        <b>File:</b> {result.file_name}
+                      </div>
+                      <div>
+                        <b>Grand Total:</b> ₹{result.grand_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div>
+                        <b>Status:</b> <span className="font-bold text-indigo-700">{result.status}</span>
+                      </div>
+                      <div>
+                        <b>Deduplication:</b> {result.duplicate_type}
+                      </div>
+                      {result.invoice_id && (
+                        <div className="sm:col-span-2 text-[10px] text-slate-500">
+                          <b>Doc ID:</b> {result.invoice_id.substring(0, 18)}...
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -135,7 +148,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               <div className="flex justify-end space-x-2">
                 <button
                   onClick={resetState}
-                  className="px-5 py-2 rounded-2xl pod-blue text-white text-xs font-bold shadow-crystal-glow-blue"
+                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white text-xs font-bold shadow-md cursor-pointer"
                 >
                   Done & Close
                 </button>
@@ -150,8 +163,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
                   file
-                    ? 'border-indigo-400 bg-indigo-50/50'
-                    : 'border-indigo-200 hover:border-indigo-400 hover:bg-white/60'
+                    ? 'border-indigo-400 bg-indigo-50/60'
+                    : 'border-indigo-200 hover:border-indigo-400 hover:bg-white/70 bg-white/40'
                 }`}
               >
                 <input
@@ -186,11 +199,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               {/* Options */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-slate-600 mb-1 font-bold">Channel Origin</label>
+                  <label className="block text-slate-800 mb-1 font-bold">Channel Origin</label>
                   <select
                     value={source}
                     onChange={(e) => setSource(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl crystal-input font-medium"
+                    className="w-full px-3 py-2 rounded-xl crystal-input font-semibold bg-white text-slate-800 border-slate-300"
                   >
                     <option value="manual_upload">Manual Portal Upload</option>
                     <option value="whatsapp">WhatsApp Ingestion (OpenWA)</option>
@@ -199,12 +212,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 </div>
 
                 <div className="flex flex-col justify-end">
-                  <label className="flex items-center space-x-2 p-2 rounded-xl crystal-card cursor-pointer hover:bg-white/90 border border-white/80">
+                  <label className="flex items-center space-x-2.5 p-2.5 rounded-xl bg-white/70 cursor-pointer hover:bg-white/90 border border-white/90 shadow-xs transition-colors">
                     <input
                       type="checkbox"
                       checked={enableStp}
                       onChange={(e) => setEnableStp(e.target.checked)}
-                      className="rounded accent-indigo-600 w-4 h-4"
+                      className="rounded accent-indigo-600 w-4 h-4 cursor-pointer"
                     />
                     <div>
                       <span className="font-bold text-slate-900 flex items-center space-x-1">
@@ -233,7 +246,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   type="button"
                   onClick={resetState}
                   disabled={uploading}
-                  className="px-4 py-2 rounded-xl crystal-pill text-xs font-bold text-slate-600 hover:text-slate-900"
+                  className="px-4 py-2 rounded-xl liquid-pill text-xs font-bold text-slate-700 hover:text-slate-900 border-white/80 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -241,7 +254,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   type="button"
                   onClick={handleUpload}
                   disabled={!file || uploading}
-                  className="px-5 py-2 rounded-2xl pod-purple text-white text-xs font-bold shadow-crystal-glow-purple disabled:opacity-50 flex items-center space-x-2"
+                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-lg disabled:opacity-50 flex items-center space-x-2 cursor-pointer transition-all active:scale-95"
                 >
                   {uploading ? (
                     <>

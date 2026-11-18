@@ -75,8 +75,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 px-4 md:px-8 py-3">
-      <div className="max-w-[1300px] mx-auto liquid-card-frosted px-6 py-2.5 flex items-center justify-between border-white/80 shadow-lg relative">
+    <header className="sticky top-0 z-40 px-3 sm:px-6 md:px-8 py-3">
+      <div className="max-w-[1720px] mx-auto liquid-navbar px-4 sm:px-6 py-2.5 flex items-center justify-between border-white/80 shadow-lg relative">
         {/* Left: Brand & Operational Status */}
         <div className="flex items-center space-x-3.5">
           <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center shadow-md text-white border border-white/60 shrink-0">

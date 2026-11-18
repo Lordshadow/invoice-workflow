@@ -137,10 +137,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     key={preset.username}
                     type="button"
                     onClick={() => handleSelectPreset(preset)}
-                    className={`p-3 rounded-2xl text-left border transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                    className={`p-3.5 rounded-2xl text-left border transition-all duration-200 flex items-center justify-between cursor-pointer ${
                       isSelected
-                        ? 'bg-white/80 border-indigo-500/70 shadow-md ring-2 ring-indigo-500/20'
-                        : 'bg-white/40 border-white/70 hover:bg-white/60'
+                        ? 'bg-white/95 border-indigo-600 shadow-lg ring-2 ring-indigo-500/50 scale-[1.01]'
+                        : 'bg-white/50 border-white/70 hover:bg-white/75 hover:border-indigo-200'
                     }`}
                   >
                     <div className="flex items-center space-x-3">
@@ -171,8 +171,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                         </div>
                       </div>
                     </div>
-                    {isSelected && (
-                      <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                    {isSelected ? (
+                      <span className="flex items-center space-x-1 text-[10px] font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Active</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-400 group-hover:text-slate-600 shrink-0">
+                        Select
+                      </span>
                     )}
                   </button>
                 );

@@ -103,14 +103,14 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
   };
 
   return (
-    <section className="max-w-[1700px] mx-auto px-6 mb-12">
+    <section className="w-full mx-auto mb-8 animate-in fade-in duration-200">
       {/* Toast Alert Notification */}
       {toast && (
         <div
-          className={`fixed top-20 right-8 z-50 px-4 py-3 rounded-2xl crystal-card shadow-2xl border flex items-center space-x-2 text-xs font-bold animate-in fade-in slide-in-from-top-4 ${
+          className={`fixed top-20 right-8 z-50 px-4 py-3 rounded-2xl liquid-modal-glass shadow-2xl border flex items-center space-x-2 text-xs font-bold animate-in fade-in slide-in-from-top-4 ${
             toast.type === 'success'
-              ? 'border-emerald-300 text-emerald-800 bg-white/95'
-              : 'border-rose-300 text-rose-800 bg-white/95'
+              ? 'border-emerald-300 text-emerald-800'
+              : 'border-rose-300 text-rose-800'
           }`}
         >
           {toast.type === 'success' ? (
@@ -123,32 +123,33 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
       )}
 
       {/* Top Breadcrumb & Controls */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-3.5 flex items-center justify-between">
         <button
           onClick={onBack}
-          className="px-4 py-2 rounded-2xl crystal-pill text-xs font-bold text-slate-700 hover:text-indigo-900 flex items-center space-x-1.5 border border-white/80 transition-colors shadow-sm"
+          className="px-4 py-2 rounded-2xl liquid-pill text-xs font-bold text-slate-800 hover:text-indigo-900 flex items-center space-x-1.5 border border-white/80 transition-all shadow-xs cursor-pointer active:scale-95"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4 text-indigo-600" />
           <span>Back to Registry</span>
         </button>
 
-        <div className="text-xs text-slate-500 font-semibold">
-          Split-Screen Document Review & Maker-Checker Governance
+        <div className="text-xs text-slate-600 font-semibold flex items-center space-x-2">
+          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+          <span>Split-Screen Document Review & Maker-Checker Dual Control</span>
         </div>
       </div>
 
       {/* Responsive Split-Screen Grid: Left Document Viewer, Right Line-Item Editor */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-140px)] min-h-[750px]">
-        {/* Left Pane: Document Canvas */}
-        <div className="h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-140px)] min-h-[720px] max-h-[960px]">
+        {/* Left Pane: Document Canvas (5 cols on lg, 6 cols on xl) */}
+        <div className="lg:col-span-5 xl:col-span-6 h-full flex flex-col min-h-0">
           <DocumentViewer
             invoiceId={invoice.id}
             fileName={invoice.file_name}
           />
         </div>
 
-        {/* Right Pane: Editable Form & Arithmetic Reconciliation */}
-        <div className="h-full">
+        {/* Right Pane: Editable Form & Arithmetic Reconciliation (7 cols on lg, 6 cols on xl) */}
+        <div className="lg:col-span-7 xl:col-span-6 h-full flex flex-col min-h-0">
           <InvoiceEditor
             invoice={invoice}
             activeUser={activeUser}

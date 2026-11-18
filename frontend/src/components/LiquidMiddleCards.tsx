@@ -65,7 +65,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
       <div 
         onClick={() => onFilterClick && onFilterClick('TARGET_ERP')}
         title="View Posted Invoices in Destination ERP Ledger"
-        className="md:col-span-3 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-emerald-400/50 transition-all"
+        className="md:col-span-4 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-emerald-400/50 transition-all"
       >
         <div className="flex items-center justify-between text-xs text-slate-300">
           <span className="font-bold text-[11px] uppercase tracking-wider">Processed Value</span>
@@ -84,7 +84,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
           </div>
         </div>
 
-        <div className="text-[10px] text-slate-400">
+        <div className="text-[10px] text-slate-400 leading-relaxed">
           Cumulative gross value posted to destination ERP
         </div>
       </div>
@@ -93,7 +93,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
       <div 
         onClick={() => onFilterClick && onFilterClick('DELIVERED')}
         title="Filter Clean Vouchers"
-        className="md:col-span-5 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-cyan-400/50 transition-all"
+        className="md:col-span-4 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-cyan-400/50 transition-all"
       >
         <div className="flex items-center justify-between text-xs text-slate-300">
           <span className="font-bold text-[11px] uppercase tracking-wider">Extraction & Precision</span>
