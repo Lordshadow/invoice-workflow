@@ -15,7 +15,7 @@ logger = logging.getLogger("invoice_processor.db")
 
 # 1. Primary Pipeline Database Engine
 is_sqlite_primary = settings.DATABASE_URL.startswith("sqlite")
-connect_args_primary = {"check_same_thread": False} if is_sqlite_primary else {}
+connect_args_primary = {"check_same_thread": False, "timeout": 30} if is_sqlite_primary else {}
 
 engine = create_engine(
     settings.DATABASE_URL,
@@ -24,19 +24,21 @@ engine = create_engine(
     echo=False
 )
 
-# Enable SQLite foreign key enforcement
+# Enable SQLite foreign key enforcement, WAL journal mode, and busy timeout for concurrent safety
 if is_sqlite_primary:
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
         cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # 2. Target Company / External Egress Database Engine
 is_sqlite_target = settings.TARGET_DATABASE_URL.startswith("sqlite")
-connect_args_target = {"check_same_thread": False} if is_sqlite_target else {}
+connect_args_target = {"check_same_thread": False, "timeout": 30} if is_sqlite_target else {}
 
 target_engine = create_engine(
     settings.TARGET_DATABASE_URL,
@@ -50,6 +52,8 @@ if is_sqlite_target:
     def set_target_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
         cursor.close()
 
 TargetSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=target_engine)
@@ -63,22 +67,20 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     TargetBase.metadata.create_all(bind=target_engine)
 
-    # Defensive schema migration for newly added columns in SQLite
-    if is_sqlite_primary:
-        with engine.connect() as conn:
-            cursor = conn.connection.cursor()
-            cursor.execute("PRAGMA table_info(invoices)")
-            existing_cols = {row[1] for row in cursor.fetchall()}
+    # Engine-agnostic schema migration for newly added columns (Postgres & SQLite compatible)
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    if inspector.has_table("invoices"):
+        existing_cols = {c["name"] for c in inspector.get_columns("invoices")}
+        with engine.begin() as conn:
             if "is_escalated" not in existing_cols:
-                cursor.execute("ALTER TABLE invoices ADD COLUMN is_escalated BOOLEAN DEFAULT 0")
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN is_escalated BOOLEAN DEFAULT 0"))
             if "escalation_reason" not in existing_cols:
-                cursor.execute("ALTER TABLE invoices ADD COLUMN escalation_reason VARCHAR(255)")
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN escalation_reason VARCHAR(255)"))
             if "escalation_category" not in existing_cols:
-                cursor.execute("ALTER TABLE invoices ADD COLUMN escalation_category VARCHAR(50)")
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN escalation_category VARCHAR(50)"))
             if "duplicate_of_id" not in existing_cols:
-                cursor.execute("ALTER TABLE invoices ADD COLUMN duplicate_of_id VARCHAR(36)")
-            conn.connection.commit()
-            cursor.close()
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN duplicate_of_id VARCHAR(36)"))
 
     logger.info("Database schemas initialized successfully.")
 

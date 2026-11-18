@@ -48,6 +48,7 @@ from backend.app.schemas.invoice import (
 )
 from backend.app.services.escalation_service import EscalationCategory, EscalationService
 from backend.app.services.invoice_validator import InvoiceValidator
+from backend.app.services.storage import get_storage_provider
 from backend.app.services.deduplication_service import (
     DeduplicationService,
     DuplicateType,
@@ -152,19 +153,21 @@ async def process_invoice(
             message=f"Duplicate file detected: Document already exists as ID {existing_doc.id}."
         )
 
-    # 2. Persist File to Storage
+    # 2. Persist File via Storage Abstraction Layer ("Host Anywhere")
     clean_filename = Path(file.filename).name
-    safe_path = settings.UPLOAD_DIR / f"{file_hash[:16]}_{clean_filename}"
-    safe_path.write_bytes(file_bytes)
+    storage = get_storage_provider()
+    storage_key = f"{file_hash[:16]}_{clean_filename}"
+    mime_type = DocumentProcessor.detect_mime_type(clean_filename, file_bytes)
+    stored_path = storage.upload(storage_key, file_bytes, content_type=mime_type)
 
     # 3. Create Document Record
     doc = Document(
         source=source,
         file_name=clean_filename,
-        file_path=str(safe_path),
+        file_path=stored_path,
         file_hash=file_hash,
         file_size_bytes=len(file_bytes),
-        mime_type=DocumentProcessor.detect_mime_type(clean_filename, file_bytes)
+        mime_type=mime_type
     )
     db.add(doc)
     db.flush()  # Populates doc.id

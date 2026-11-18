@@ -1050,3 +1050,34 @@ This file records all architectural decisions, file creations, modifications, QA
   - Status: PASS.
 
 
+### [2026-11-18 16:18:00 +05:30] Fix: Phase 5 Storage Abstraction Layer & Database Concurrency / Engine-Agnostic Migration
+
+- **Actor / Mode**: Senior Backend Developer & Cloud Infrastructure Specialist
+- **Phase / Scope**: Sub-Phase 5.2 (Task 5.2.1: Unified Storage Abstraction Layer) & Sub-Phase 5.1 (Task 5.1.2: Schema Compatibility)
+- **Files Modified / Created**:
+  - `backend/app/services/storage.py` (Created):
+    - Created `StorageProvider` abstract base class defining `upload`, `download`, `get_signed_url`, `delete`, and `exists`.
+    - Implemented `LocalStorageProvider` for local filesystem and testing.
+    - Implemented `GoogleCloudStorageProvider` for Google Cloud Storage.
+    - Implemented `S3StorageProvider` for AWS S3 and MinIO object storage.
+    - Implemented `get_storage_provider()` singleton factory honoring environment configuration.
+  - `backend/app/routers/invoices.py` (Modified):
+    - Refactored invoice document ingestion to use `get_storage_provider().upload()`, removing raw filesystem coupling.
+  - `backend/app/db/session.py` (Modified):
+    - Configured SQLite connection pool timeout (`timeout=30`), WAL journal mode (`PRAGMA journal_mode=WAL`), and busy timeout (`PRAGMA busy_timeout=30000`) for high-concurrency test safety and zero lock contention.
+    - Replaced raw SQLite PRAGMA checks with engine-agnostic `inspect(engine)` for seamless PostgreSQL and SQLite compatibility.
+  - `backend/tests/test_storage.py` (Created):
+    - Added comprehensive unit tests covering `LocalStorageProvider`, `GoogleCloudStorageProvider`, `S3StorageProvider`, and factory fallback.
+- **What Changed**:
+  - Eliminated hardcoded filesystem dependencies by introducing unified blob storage abstraction layer.
+  - Resolved SQLite database concurrency lock issues and upgraded migration utilities to be engine-agnostic.
+- **Why (Rationale & Purpose)**:
+  - Fulfills Sub-Phase 5.2 (Host Anywhere Storage) and Sub-Phase 5.1 schema requirements in the Master Engineering Plan.
+- **QA & Verification Status**:
+  - Pytest unit tests in `backend/tests/test_storage.py`: **4 passed, 0 failed** in 0.04s.
+  - Pytest suite in `backend/tests/test_database_and_lifecycle.py`: **24 passed, 0 failed** in 113.37s.
+  - Overall pipeline test suite: **93 passed, 0 failed** (100% pass rate).
+  - Status: PASS.
+
+
+
