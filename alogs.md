@@ -1270,3 +1270,40 @@ This file records all architectural decisions, file creations, modifications, QA
   - `backend/tests/test_ingest.py`: **6 passed, 0 failed in 23.00s**.
   - Frontend production build (`npm run build`): **Clean compilation with 0 errors in 758ms**.
   - Status: PASS.
+
+
+### [2026-11-18 21:55:00 +05:30] Fix: Relocate Staff Registration into Governance Portal & Restart Live Server
+
+- **Actor / Mode**: Senior Full-Stack Engineer & Governance Specialist
+- **Phase / Scope**: Authentication, Admin Staff Portal & Live Server
+- **Files Modified / Created**:
+  - `frontend/src/components/LoginPage.tsx` (Modified):
+    - Removed staff registration tabs, forms, and states from the public login screen.
+    - Simplified to a pure corporate sign-in interface (Username/Email + Password + Sign In button).
+  - `frontend/src/components/AdminStaffPortal.tsx` (Modified):
+    - Added `+ Register New Staff` action button to the Governance administration header.
+    - Added interactive liquid modal allowing Administrators to register and provision staff directly with Full Name, Corporate Email, Username, Password, Role (Maker/Checker/Admin), Department, and immediate activation.
+  - `backend/app/schemas/auth.py` (Modified):
+    - Added `AdminRegisterStaffRequest` schema.
+  - `backend/app/routers/admin.py` (Modified):
+    - Added `POST /api/v1/admin/staff/register` endpoint guarded by `require_admin`.
+  - `frontend/src/types/invoice.ts` & `frontend/src/services/api.ts` (Modified):
+    - Added `AdminRegisterStaffRequest` type and `api.adminRegisterStaff()` method.
+  - `frontend/src/App.tsx` (Modified):
+    - Automatically clears legacy unauthenticated demo sessions from localStorage when `lf_token` is absent, preventing stale persona state.
+  - `backend/tests/test_auth.py` (Modified):
+    - Added `test_admin_direct_register_staff` unit test (7/7 tests passed in 9.76s).
+  - Background Tasks (Restarted):
+    - Killed task-1370 (stale server without `/admin/staff` routes) and started task-1800 with `--reload`.
+  - `frontend/dist/` (Rebuilt):
+    - Recompiled production bundle cleanly (`npm run build`) in 784ms.
+- **What Changed**:
+  - Eliminated public staff registration on the login page and placed it inside the Admin Staff & Governance portal.
+  - Resolved the `HTTP 404 Not Found` error by restarting the live backend server with the updated admin router and recompiling frontend assets.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "can u see th bug, the staf registaton need to inside the governance tab but it is in the sign inpage, fix that first".
+- **QA & Verification Status**:
+  - `backend/tests/test_auth.py`: **7 passed, 0 failed in 9.76s**.
+  - Live server verification via HTTP request: `POST /api/v1/auth/login` and `GET /api/v1/admin/staff` return HTTP 200 with active staff roster (4 total staff).
+  - Frontend production build: **Clean compilation with 0 errors in 784ms**.
+  - Status: PASS.

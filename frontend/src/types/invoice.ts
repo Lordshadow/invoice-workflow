@@ -53,6 +53,16 @@ export interface RegisterStaffRequest {
   department?: string;
 }
 
+export interface AdminRegisterStaffRequest {
+  username: string;
+  email: string;
+  password: string;
+  full_name: string;
+  role: string;
+  department?: string;
+  status?: string;
+}
+
 export interface LineItem {
   id?: string;
   description: string;

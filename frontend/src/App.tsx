@@ -27,8 +27,14 @@ export function App() {
   // Load initial session from localStorage or default to null for Login Screen
   const [activeUser, setActiveUser] = useState<UserSession | null>(() => {
     try {
-      const saved = localStorage.getItem('lf_user') || localStorage.getItem('ledgerflow_user_session');
-      return saved ? JSON.parse(saved) : null;
+      const token = localStorage.getItem('lf_token');
+      const savedUser = localStorage.getItem('lf_user');
+      if (token && savedUser) {
+        return JSON.parse(savedUser);
+      }
+      // Clear any legacy unauthenticated session
+      localStorage.removeItem('ledgerflow_user_session');
+      return null;
     } catch {
       return null;
     }

@@ -65,6 +65,16 @@ class StaffStatusUpdateRequest(BaseModel):
     reason: Optional[str] = Field(default=None, description="Reason for status change")
 
 
+class AdminRegisterStaffRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64, description="Alphanumeric corporate username")
+    email: str = Field(..., pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", description="Corporate email address")
+    password: str = Field(..., min_length=6, max_length=128, description="Initial secure account password")
+    full_name: str = Field(..., min_length=2, max_length=128, description="Full legal name of the staff member")
+    role: str = Field(default="ACCOUNTANT", description="Assigned governance role: ACCOUNTANT, APPROVER, or ADMIN")
+    department: str = Field(default="Finance & Accounts", description="Corporate department")
+    status: str = Field(default="ACTIVE", description="Initial account status: ACTIVE or PENDING_APPROVAL")
+
+
 class StaffListResponse(BaseModel):
     total: int
     pending_count: int

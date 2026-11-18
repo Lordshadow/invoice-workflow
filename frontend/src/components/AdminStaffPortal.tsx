@@ -11,7 +11,15 @@ import {
   Trash2, 
   Lock, 
   Unlock, 
-  Building
+  Building,
+  UserPlus,
+  X,
+  KeyRound,
+  Mail,
+  User,
+  Eye,
+  EyeOff,
+  ArrowRight
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { UserSession, StaffListResponse } from '../types/invoice';
@@ -31,6 +39,51 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING_APPROVAL' | 'SUSPENDED' | 'REJECTED'>('ALL');
+
+  // Register Staff Modal State
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [regFullName, setRegFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [regRole, setRegRole] = useState<'ACCOUNTANT' | 'APPROVER' | 'ADMIN'>('ACCOUNTANT');
+  const [regDepartment, setRegDepartment] = useState('Accounts Payable Operations');
+  const [regStatus, setRegStatus] = useState<'ACTIVE' | 'PENDING_APPROVAL'>('ACTIVE');
+  const [regSubmitting, setRegSubmitting] = useState(false);
+  const [regError, setRegError] = useState<string | null>(null);
+
+  const handleRegisterStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError(null);
+    setRegSubmitting(true);
+    try {
+      const newUser = await api.adminRegisterStaff({
+        full_name: regFullName.trim(),
+        email: regEmail.trim(),
+        username: regUsername.trim(),
+        password: regPassword,
+        role: regRole,
+        department: regDepartment.trim(),
+        status: regStatus,
+      });
+      setActionNotice(`Staff member '${newUser.username}' successfully registered and provisioned as ${newUser.role}.`);
+      setIsRegisterModalOpen(false);
+      // Reset form
+      setRegFullName('');
+      setRegEmail('');
+      setRegUsername('');
+      setRegPassword('');
+      setRegRole('ACCOUNTANT');
+      setRegDepartment('Accounts Payable Operations');
+      setRegStatus('ACTIVE');
+      await fetchStaff();
+    } catch (err: unknown) {
+      setRegError(err instanceof Error ? err.message : 'Failed to register staff member.');
+    } finally {
+      setRegSubmitting(false);
+    }
+  };
 
   const fetchStaff = useCallback(async () => {
     try {
@@ -164,6 +217,17 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRegError(null);
+                setIsRegisterModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white text-xs font-black flex items-center space-x-1.5 transition-all shadow-md shadow-indigo-500/20 border border-white/60 cursor-pointer active:scale-95"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Register New Staff</span>
+            </button>
             {onBack && (
               <button
                 onClick={onBack}
@@ -506,6 +570,257 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
           </table>
         </div>
       </div>
+
+      {/* Admin Staff Registration Modal */}
+      {isRegisterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg liquid-modal-glass p-6 sm:p-8 shadow-2xl relative border border-white/90">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/60">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-md border border-white/70 shrink-0">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Register New Staff Member
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium">
+                    Provision corporate accounts with assigned Maker/Checker governance roles
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRegisterModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/40 hover:bg-white/80 border border-white/80 text-slate-500 hover:text-slate-800 transition-all shadow-xs flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {regError && (
+              <div className="mt-4 p-3 rounded-xl bg-rose-500/15 border border-rose-400/40 text-rose-900 text-xs flex items-center space-x-2 font-medium">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{regError}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleRegisterStaff} className="mt-4 space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Full Legal Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={regFullName}
+                      onChange={(e) => setRegFullName(e.target.value)}
+                      placeholder="e.g. Priya Sharma"
+                      required
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Corporate Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="e.g. priya@enterprise.local"
+                      required
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={regUsername}
+                      onChange={(e) => setRegUsername(e.target.value)}
+                      placeholder="e.g. priya.maker"
+                      required
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Initial Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type={showRegPassword ? 'text' : 'password'}
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      placeholder="Min 6 characters"
+                      required
+                      minLength={6}
+                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegPassword(!showRegPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Department
+                </label>
+                <div className="relative">
+                  <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={regDepartment}
+                    onChange={(e) => setRegDepartment(e.target.value)}
+                    placeholder="e.g. Accounts Payable Operations"
+                    required
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Role Selection */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Assign Governance Role
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('ACCOUNTANT')}
+                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                      regRole === 'ACCOUNTANT'
+                        ? 'bg-indigo-50 border-indigo-400 text-indigo-950 shadow-xs'
+                        : 'bg-white/50 border-white/80 text-slate-700 hover:bg-white/80'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-1.5">
+                      <Users className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span className="text-xs font-bold">Maker</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Accountant</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('APPROVER')}
+                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                      regRole === 'APPROVER'
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-950 shadow-xs'
+                        : 'bg-white/50 border-white/80 text-slate-700 hover:bg-white/80'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-1.5">
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="text-xs font-bold">Checker</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Approver</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('ADMIN')}
+                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                      regRole === 'ADMIN'
+                        ? 'bg-purple-50 border-purple-400 text-purple-950 shadow-xs'
+                        : 'bg-white/50 border-white/80 text-slate-700 hover:bg-white/80'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-1.5">
+                      <Shield className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                      <span className="text-xs font-bold">Admin</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Governance</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Toggle */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Account Activation
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegStatus('ACTIVE')}
+                    className={`p-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                      regStatus === 'ACTIVE'
+                        ? 'bg-emerald-500/15 border-emerald-400 text-emerald-900'
+                        : 'bg-white/50 border-white/80 text-slate-600 hover:bg-white/80'
+                    }`}
+                  >
+                    Active Immediately
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegStatus('PENDING_APPROVAL')}
+                    className={`p-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                      regStatus === 'PENDING_APPROVAL'
+                        ? 'bg-amber-500/15 border-amber-400 text-amber-900'
+                        : 'bg-white/50 border-white/80 text-slate-600 hover:bg-white/80'
+                    }`}
+                  >
+                    Pending Review
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-white/60">
+                <button
+                  type="button"
+                  onClick={() => setIsRegisterModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-200/60 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={regSubmitting}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white text-xs font-black shadow-md shadow-indigo-500/20 border border-white/60 transition-all cursor-pointer flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {regSubmitting ? (
+                    <span>Provisioning...</span>
+                  ) : (
+                    <>
+                      <span>Register & Provision Staff</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -8,12 +8,13 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 
 from backend.app.db.session import get_db
 from backend.app.models.user import User, UserRole, UserStatus
 from backend.app.models.invoice import AuditLog
 from backend.app.schemas.auth import (
+    AdminRegisterStaffRequest,
     StaffApprovalRequest,
     StaffRoleUpdateRequest,
     StaffStatusUpdateRequest,
@@ -21,6 +22,7 @@ from backend.app.schemas.auth import (
     UserSessionDTO
 )
 from backend.app.routers.auth import require_admin
+from backend.app.services.security import hash_password
 
 logger = logging.getLogger("invoice_processor.admin")
 router = APIRouter(prefix="/admin/staff", tags=["Administrator & Staff Governance"])
@@ -56,6 +58,80 @@ def list_staff(
         active_checkers=active_checkers,
         staff=[UserSessionDTO(**u.to_session_dict()) for u in users]
     )
+
+
+@router.post("/register", response_model=UserSessionDTO, status_code=status.HTTP_201_CREATED, summary="Admin Direct Staff Registration & Provisioning")
+def admin_register_staff(
+    body: AdminRegisterStaffRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    Administrator directly registers and provisions a new staff member account.
+    Validates username and email uniqueness, hashes password, and persists active staff.
+    """
+    clean_username = body.username.strip().lower()
+    clean_email = body.email.strip().lower()
+
+    existing_user = db.scalars(
+        select(User).where(
+            or_(
+                func.lower(User.username) == clean_username,
+                func.lower(User.email) == clean_email
+            )
+        )
+    ).first()
+
+    if existing_user:
+        if existing_user.username.lower() == clean_username:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Staff username '{body.username}' is already registered."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Corporate email '{body.email}' is already in use."
+        )
+
+    target_role = body.role.strip().upper()
+    if target_role not in (UserRole.ACCOUNTANT.value, UserRole.APPROVER.value, UserRole.ADMIN.value):
+        target_role = UserRole.ACCOUNTANT.value
+
+    target_status = body.status.strip().upper()
+    if target_status not in (UserStatus.ACTIVE.value, UserStatus.PENDING_APPROVAL.value):
+        target_status = UserStatus.ACTIVE.value
+
+    pwd_hash, pwd_salt = hash_password(body.password)
+
+    new_user = User(
+        username=clean_username,
+        email=clean_email,
+        full_name=body.full_name.strip(),
+        password_hash=pwd_hash,
+        password_salt=pwd_salt,
+        role=target_role,
+        status=target_status,
+        department=body.department.strip() or "Accounts Payable Operations",
+        approved_at=datetime.now(timezone.utc) if target_status == UserStatus.ACTIVE.value else None,
+        approved_by=admin.username if target_status == UserStatus.ACTIVE.value else None
+    )
+
+    db.add(new_user)
+    db.flush()
+
+    audit = AuditLog(
+        entity_type="user",
+        entity_id=new_user.id,
+        actor=admin.username,
+        action="STAFF_PROVISIONED_BY_ADMIN",
+        changes_json=f'{{"created_username":"{new_user.username}","role":"{new_user.role}","status":"{new_user.status}","department":"{new_user.department}"}}'
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(new_user)
+
+    logger.info(f"Admin {admin.username} successfully provisioned new staff account {new_user.username} ({new_user.role})")
+    return UserSessionDTO(**new_user.to_session_dict())
 
 
 @router.post("/{user_id}/approve", response_model=UserSessionDTO, summary="Approve Pending Staff Member")

@@ -3,6 +3,7 @@
  */
 
 import type {
+  AdminRegisterStaffRequest,
   CompanyInvoice,
   EscalationStats,
   InvoiceDetail,
@@ -343,6 +344,14 @@ export const api = {
   async deleteStaff(userId: string): Promise<{ success: boolean; message: string }> {
     return request<{ success: boolean; message: string }>(`/admin/staff/${userId}`, {
       method: 'DELETE',
+    });
+  },
+
+  async adminRegisterStaff(payload: AdminRegisterStaffRequest): Promise<UserSession> {
+    return request<UserSession>('/admin/staff/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
   },
 

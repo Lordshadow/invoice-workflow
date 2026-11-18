@@ -172,3 +172,38 @@ def test_non_admin_cannot_access_staff_portal():
     res = client.get("/api/v1/admin/staff", headers=john_header)
     assert res.status_code == 403
     assert "Administrative privileges required" in res.json()["detail"]
+
+
+def test_admin_direct_register_staff():
+    """Verifies that an Admin can directly provision an active staff account."""
+    adm = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"}).json()
+    auth_header = {"Authorization": f"Bearer {adm['token']}"}
+
+    res = client.post(
+        "/api/v1/admin/staff/register",
+        headers=auth_header,
+        json={
+            "username": "emma.finance",
+            "email": "emma@enterprise.local",
+            "password": "emmapassword123",
+            "full_name": "Emma Watson",
+            "role": "ACCOUNTANT",
+            "department": "Accounts Payable Operations",
+            "status": "ACTIVE"
+        }
+    )
+    assert res.status_code == 201
+    data = res.json()
+    assert data["username"] == "emma.finance"
+    assert data["role"] == "ACCOUNTANT"
+    assert data["status"] == "ACTIVE"
+    assert data["approvedBy"] == "admin"
+
+    # Verify Emma can immediately log in
+    emma_login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "emma.finance", "password": "emmapassword123"}
+    )
+    assert emma_login.status_code == 200
+    assert emma_login.json()["user"]["username"] == "emma.finance"
+    assert emma_login.json()["user"]["role"] == "ACCOUNTANT"
