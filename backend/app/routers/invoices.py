@@ -117,6 +117,21 @@ async def process_invoice(
             except Exception:
                 val_errors = [existing_inv.validation_errors]
 
+        # Log audit entry for Layer 1 duplicate detection
+        audit_entry = AuditLog(
+            entity_type="document",
+            entity_id=existing_doc.id,
+            actor="system",
+            action="LAYER1_DUPLICATE_FILE_DETECTED",
+            changes_json=json.dumps({
+                "file_name": getattr(file, "filename", existing_doc.file_name),
+                "file_hash": file_hash,
+                "existing_invoice_id": existing_inv.id if existing_inv else None
+            })
+        )
+        db.add(audit_entry)
+        db.commit()
+
         return ProcessInvoiceResponse(
             success=True,
             document_id=existing_doc.id,
@@ -169,6 +184,8 @@ async def process_invoice(
         current_invoice_id=None,
         db=db,
         supplier_name=supplier_name,
+        invoice_date=inv_model.metadata.invoice_date if (inv_model and inv_model.metadata) else None,
+        grand_total=inv_model.grand_total if inv_model else None,
     )
 
     # 6. Straight-Through Processing (STP) vs Human-in-the-Loop Escalation Decision
@@ -210,6 +227,7 @@ async def process_invoice(
         is_escalated=decision.is_escalated,
         escalation_reason=decision.escalation_reason,
         escalation_category=decision.escalation_category,
+        duplicate_of_id=existing_business_dup.id if existing_business_dup else None,
         version=1
     )
     db.add(db_invoice)
@@ -360,6 +378,7 @@ def list_invoices(
                 is_escalated=inv.is_escalated,
                 escalation_reason=inv.escalation_reason,
                 escalation_category=inv.escalation_category,
+                duplicate_of_id=inv.duplicate_of_id,
                 version=inv.version,
                 created_at=inv.created_at,
             )
@@ -420,6 +439,7 @@ def list_escalated_invoices(
             is_escalated=inv.is_escalated,
             escalation_reason=inv.escalation_reason,
             escalation_category=inv.escalation_category,
+            duplicate_of_id=inv.duplicate_of_id,
             version=inv.version,
             created_at=inv.created_at,
         )
@@ -670,6 +690,7 @@ def get_invoice(invoice_id: str, db: Session = Depends(get_db)):
         is_escalated=inv.is_escalated,
         escalation_reason=inv.escalation_reason,
         escalation_category=inv.escalation_category,
+        duplicate_of_id=inv.duplicate_of_id,
         validation_errors=val_errors,
         extraction_notes=inv.extraction_notes,
         version=inv.version,
@@ -1080,47 +1101,80 @@ def update_invoice(
     inv.is_valid = is_valid
     inv.validation_errors = json.dumps(validation_errors)
 
-    # If re-validation succeeds, clear math/missing fields escalation
-    if is_valid and inv.is_escalated and inv.escalation_category in (
-        EscalationCategory.MATH_MISMATCH.value,
-        EscalationCategory.MISSING_FIELDS.value,
-        EscalationCategory.LOW_CONFIDENCE.value,
-    ):
-        inv.is_escalated = False
-        inv.escalation_reason = None
-        inv.escalation_category = None
+    # Re-evaluate business deduplication on updated fields
+    dup_type, existing_dup = DeduplicationService.check_business_duplicate(
+        supplier_gstin=inv.supplier_gstin,
+        invoice_number=inv.invoice_number,
+        current_invoice_id=inv.id,
+        db=db,
+        supplier_name=inv.supplier_name,
+        invoice_date=inv.invoice_date,
+        grand_total=inv.grand_total,
+    )
+    inv.duplicate_of_id = existing_dup.id if existing_dup else None
 
-    # State transition if validation status changed
-    old_status = inv.status
     state_transitioned = False
+    old_status = inv.status
 
-    if is_valid and inv.status in (InvoiceStatus.PENDING_CORRECTION, InvoiceStatus.DUPLICATE_INVESTIGATION):
-        InvoiceStateMachine.transition(
-            invoice=inv,
-            target_status=InvoiceStatus.PENDING_APPROVAL,
-            actor=body.actor,
-            reason=f"Accountant corrections passed validation ({body.notes or 'Fields updated'})",
-            db=db
-        )
-        state_transitioned = True
-    elif not is_valid and inv.status == InvoiceStatus.PENDING_APPROVAL:
-        InvoiceStateMachine.transition(
-            invoice=inv,
-            target_status=InvoiceStatus.PENDING_CORRECTION,
-            actor=body.actor,
-            reason="Edits introduced validation mismatches",
-            db=db
-        )
-        state_transitioned = True
-    elif not is_valid and inv.status == InvoiceStatus.DUPLICATE_INVESTIGATION:
-        InvoiceStateMachine.transition(
-            invoice=inv,
-            target_status=InvoiceStatus.PENDING_CORRECTION,
-            actor=body.actor,
-            reason="Duplicate investigation concluded: validation errors require correction",
-            db=db
-        )
-        state_transitioned = True
+    if dup_type != DuplicateType.NONE:
+        # Prevent clearing duplicate status if still a duplicate!
+        inv.is_escalated = True
+        inv.escalation_reason = f"Duplicate suspected: {dup_type.value}"
+        inv.escalation_category = EscalationCategory.DUPLICATE_SUSPECTED.value
+        if inv.status != InvoiceStatus.DUPLICATE_INVESTIGATION:
+            InvoiceStateMachine.transition(
+                invoice=inv,
+                target_status=InvoiceStatus.DUPLICATE_INVESTIGATION,
+                actor=body.actor,
+                reason=f"Edited invoice matches existing invoice {existing_dup.id} ({dup_type.value})",
+                db=db
+            )
+            state_transitioned = True
+    else:
+        # If deduplication passed cleanly, clear duplicate escalation if present
+        if inv.is_escalated and inv.escalation_category == EscalationCategory.DUPLICATE_SUSPECTED.value:
+            inv.is_escalated = False
+            inv.escalation_reason = None
+            inv.escalation_category = None
+
+        # If re-validation succeeds, clear math/missing fields escalation
+        if is_valid and inv.is_escalated and inv.escalation_category in (
+            EscalationCategory.MATH_MISMATCH.value,
+            EscalationCategory.MISSING_FIELDS.value,
+            EscalationCategory.LOW_CONFIDENCE.value,
+        ):
+            inv.is_escalated = False
+            inv.escalation_reason = None
+            inv.escalation_category = None
+
+        # State transition if validation status changed
+        if is_valid and inv.status in (InvoiceStatus.PENDING_CORRECTION, InvoiceStatus.DUPLICATE_INVESTIGATION):
+            InvoiceStateMachine.transition(
+                invoice=inv,
+                target_status=InvoiceStatus.PENDING_APPROVAL,
+                actor=body.actor,
+                reason=f"Accountant corrections passed validation and deduplication ({body.notes or 'Fields updated'})",
+                db=db
+            )
+            state_transitioned = True
+        elif not is_valid and inv.status == InvoiceStatus.PENDING_APPROVAL:
+            InvoiceStateMachine.transition(
+                invoice=inv,
+                target_status=InvoiceStatus.PENDING_CORRECTION,
+                actor=body.actor,
+                reason="Edits introduced validation mismatches",
+                db=db
+            )
+            state_transitioned = True
+        elif not is_valid and inv.status == InvoiceStatus.DUPLICATE_INVESTIGATION:
+            InvoiceStateMachine.transition(
+                invoice=inv,
+                target_status=InvoiceStatus.PENDING_CORRECTION,
+                actor=body.actor,
+                reason="Duplicate investigation concluded: validation errors require correction",
+                db=db
+            )
+            state_transitioned = True
 
     # Only increment version if a state transition didn't already increment it
     if not state_transitioned:

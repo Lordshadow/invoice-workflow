@@ -61,6 +61,7 @@ class InvoiceSummaryDTO(BaseModel):
     is_escalated: bool = False
     escalation_reason: Optional[str] = None
     escalation_category: Optional[str] = None
+    duplicate_of_id: Optional[str] = None
     version: int = 1
     created_at: datetime
 
@@ -95,6 +96,7 @@ class InvoiceDetailDTO(BaseModel):
     is_escalated: bool = False
     escalation_reason: Optional[str] = None
     escalation_category: Optional[str] = None
+    duplicate_of_id: Optional[str] = None
     validation_errors: List[str] = Field(default_factory=list)
     extraction_notes: Optional[str] = None
     version: int = 1

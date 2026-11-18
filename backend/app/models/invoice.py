@@ -93,6 +93,7 @@ class Invoice(Base):
     is_escalated: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     escalation_reason: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     escalation_category: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    duplicate_of_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("invoices.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Optimistic Concurrency Control (OCC)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

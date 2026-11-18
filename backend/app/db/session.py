@@ -75,6 +75,8 @@ def init_db():
                 cursor.execute("ALTER TABLE invoices ADD COLUMN escalation_reason VARCHAR(255)")
             if "escalation_category" not in existing_cols:
                 cursor.execute("ALTER TABLE invoices ADD COLUMN escalation_category VARCHAR(50)")
+            if "duplicate_of_id" not in existing_cols:
+                cursor.execute("ALTER TABLE invoices ADD COLUMN duplicate_of_id VARCHAR(36)")
             conn.connection.commit()
             cursor.close()
 

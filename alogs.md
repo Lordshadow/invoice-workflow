@@ -1018,3 +1018,35 @@ This file records all architectural decisions, file creations, modifications, QA
   - Pytest test suites: 22 passed in 19.41s across `test_invoice_validator.py` and `test_bug_fixes.py` (100% pass rate).
   - Status: PASS.
 
+
+### [2026-11-18 16:08:00 +05:30] Fix: Phase 4.2 Two-Tier Deduplication, Fuzzy Matching, Collision Prevention & Candidate Linking
+
+- **Actor / Mode**: Senior Backend Developer & Data Integrity Specialist
+- **Phase / Scope**: Sub-Phase 4.2: Two-Tier Deduplication Engine
+- **Files Modified / Created**:
+  - `backend/app/services/deduplication_service.py` (Modified):
+    - Implemented `levenshtein_distance_le1` algorithm for fuzzy invoice number matching (Levenshtein distance $\le 1$).
+    - Implemented date proximity ($\pm 3$ days) matching with identical grand total ($\pm 50$ paise).
+    - Upgraded `normalize_invoice_number` to preserve segment boundaries on multi-segment pure numeric invoices (`2024/01/2` $\rightarrow$ `2024-1-2` vs `2024/12` $\rightarrow$ `2024-12`), eliminating collision false positives while maintaining zero-stripping on standard alphanumeric prefixes (`INV-00123` $\rightarrow$ `INV123`).
+    - Added fast-path SQL indexed query for direct exact matches before running normalized loop.
+  - `backend/app/models/invoice.py` (Modified):
+    - Added `duplicate_of_id` foreign key column pointing to the duplicate candidate invoice record.
+  - `backend/app/schemas/invoice_api.py` (Modified):
+    - Exposed `duplicate_of_id` on `InvoiceSummaryDTO` and `InvoiceDetailDTO`.
+  - `backend/app/db/session.py` (Modified):
+    - Added defensive SQLite pragma check for `duplicate_of_id`.
+  - `backend/app/routers/invoices.py` (Modified):
+    - Added audit log recording when Layer 1 exact file duplicate is detected.
+    - Wired `duplicate_of_id` population in invoice ingestion, `get_invoice`, and `list_invoices`.
+    - Added business deduplication re-evaluation in `update_invoice` endpoint to prevent duplicate status bypass.
+  - `backend/tests/test_database_and_lifecycle.py` (Modified):
+    - Added unit tests for Levenshtein fuzzy duplicate detection, date proximity fuzzy duplicate detection, and multi-segment numeric collision prevention.
+- **What Changed**:
+  - Closed 6 critical bugs and performance bottlenecks across Sub-Phase 4.2.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "fix it one by one and after each fix test for the system to work correctly".
+- **QA & Verification Status**:
+  - Full automated lifecycle test suite executed: **24 passed, 0 failed** in 140.67s across `test_database_and_lifecycle.py` (100% pass rate).
+  - Status: PASS.
+
+

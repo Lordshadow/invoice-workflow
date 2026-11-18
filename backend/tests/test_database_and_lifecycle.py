@@ -184,6 +184,54 @@ class TestDatabaseAndLifecycle:
         assert dup_type == DuplicateType.EXACT_BUSINESS_DUPLICATE
         assert matched.id == inv.id
 
+    def test_layer2_fuzzy_levenshtein_and_date_deduplication(self, db_session):
+        """Verifies Layer 2 fuzzy matching for Levenshtein distance <= 1 and date proximity with identical total."""
+        doc = Document(source="upload", file_name="fuzzy.pdf", file_path="f.pdf", file_hash="fhash1", file_size_bytes=100, mime_type="application/pdf")
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_APPROVAL,
+            supplier_gstin="33FUZZY1234F1Z9",
+            invoice_number="INV-2026-900",
+            invoice_date="2026-11-17",
+            grand_total=5000.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        # 1. Fuzzy match via Levenshtein distance = 1 (typo 'INV-2026-901' vs 'INV-2026-900')
+        dup_type_lev, matched_lev = DeduplicationService.check_business_duplicate(
+            supplier_gstin="33FUZZY1234F1Z9",
+            invoice_number="INV-2026-901",
+            current_invoice_id=None,
+            db=db_session
+        )
+        assert dup_type_lev == DuplicateType.FUZZY_SUSPECTED_DUPLICATE
+        assert matched_lev.id == inv.id
+
+        # 2. Fuzzy match via Date proximity (+/- 2 days) with identical grand total
+        dup_type_date, matched_date = DeduplicationService.check_business_duplicate(
+            supplier_gstin="33FUZZY1234F1Z9",
+            invoice_number="DIFF-NUM-999",
+            current_invoice_id=None,
+            db=db_session,
+            invoice_date="2026-11-19",
+            grand_total=5000.0
+        )
+        assert dup_type_date == DuplicateType.FUZZY_SUSPECTED_DUPLICATE
+        assert matched_date.id == inv.id
+
+    def test_multisegment_numeric_invoice_numbers_no_collision(self):
+        """Verifies multi-segment pure numeric invoice numbers ('2024/01/2' vs '2024/12') do not collide."""
+        s1 = DeduplicationService.normalize_invoice_number("2024/01/2")
+        s2 = DeduplicationService.normalize_invoice_number("2024/12")
+        assert s1 == "2024-1-2"
+        assert s2 == "2024-12"
+        assert s1 != s2
+
     def test_delivery_worker_idempotent_posting(self, db_session, target_db_session):
         """Verifies DeliveryWorker writes to Target DB and enforces idempotency."""
         doc = Document(
