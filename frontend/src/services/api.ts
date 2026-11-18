@@ -10,6 +10,7 @@ import type {
   InvoiceSummary,
   LineItem,
   ProcessInvoiceResult,
+  UserSession,
 } from '../types/invoice';
 
 const BASE_URL = '/api/v1';
@@ -244,5 +245,19 @@ export const api = {
   // Destination Target ERP Inspection
   async getTargetCompanyInvoices(limit: number = 50, offset: number = 0): Promise<CompanyInvoice[]> {
     return request<CompanyInvoice[]>(`/target-company/invoices?limit=${limit}&offset=${offset}`);
+  },
+
+  // Authenticate Corporate User
+  async login(username: string, password: string): Promise<{ token: string; user: UserSession }> {
+    return request<{ token: string; user: UserSession }>('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+  },
+
+  // List Available Corporate Personas
+  async listPersonas(): Promise<UserSession[]> {
+    return request<UserSession[]>('/auth/users');
   },
 };

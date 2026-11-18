@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.config import settings
 from backend.app.db.session import init_db
+from backend.app.routers.auth import router as auth_router
 from backend.app.routers.document_processing import router as document_router
 from backend.app.routers.extraction import router as extraction_router
 from backend.app.routers.invoices import router as invoices_router, target_router
@@ -66,6 +67,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 init_db()
 
 # Register API Routers
+app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(document_router, prefix=settings.API_V1_PREFIX)
 app.include_router(extraction_router, prefix=settings.API_V1_PREFIX)
 app.include_router(invoices_router, prefix=settings.API_V1_PREFIX)

@@ -24,6 +24,9 @@ export interface UserSession {
   username: string;
   role: UserRole;
   fullName: string;
+  title?: string;
+  email?: string;
+  department?: string;
 }
 
 export interface LineItem {

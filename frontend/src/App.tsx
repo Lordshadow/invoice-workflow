@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { LiquidBackground } from './components/LiquidBackground';
 import { LiquidTopCards } from './components/LiquidTopCards';
@@ -17,16 +18,37 @@ import type {
   UserSession 
 } from './types/invoice';
 
-const DEFAULT_USER: UserSession = {
-  username: 'john.accountant',
-  fullName: 'John Doe',
-  role: 'ACCOUNTANT',
-};
-
 export function App() {
-  // Navigation & User Persona
+  // Navigation & User Session State
   const [currentTab, setCurrentTab] = useState<'queue' | 'escalated' | 'target_erp'>('queue');
-  const [activeUser, setActiveUser] = useState<UserSession>(DEFAULT_USER);
+  
+  // Load initial session from localStorage or default to null for Login Screen
+  const [activeUser, setActiveUser] = useState<UserSession | null>(() => {
+    try {
+      const saved = localStorage.getItem('ledgerflow_user_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const handleLogin = (user: UserSession) => {
+    try {
+      localStorage.setItem('ledgerflow_user_session', JSON.stringify(user));
+    } catch {
+      // ignore
+    }
+    setActiveUser(user);
+  };
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('ledgerflow_user_session');
+    } catch {
+      // ignore
+    }
+    setActiveUser(null);
+  };
 
   // Data State
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
@@ -43,6 +65,7 @@ export function App() {
 
   // Load Invoices and Metrics
   const loadData = useCallback(async () => {
+    if (!activeUser) return;
     try {
       const statsPromise = api.getEscalationStats();
       let invoicesPromise: Promise<InvoiceSummary[]>;
@@ -62,14 +85,16 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, [currentTab, selectedFilter, searchQuery]);
+  }, [activeUser, currentTab, selectedFilter, searchQuery]);
 
   // Initial load and periodic polling every 12 seconds
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 12000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+    if (activeUser) {
+      loadData();
+      const interval = setInterval(loadData, 12000);
+      return () => clearInterval(interval);
+    }
+  }, [activeUser, loadData]);
 
   // Open invoice review
   const handleSelectInvoice = async (invoiceId: string) => {
@@ -127,6 +152,12 @@ export function App() {
     }
   };
 
+  // 1. If not authenticated, display Enterprise Liquid Glass Login Page
+  if (!activeUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  // 2. If authenticated, display Full Executive Dashboard
   return (
     <div className="min-h-screen relative flex flex-col selection:bg-indigo-600 selection:text-white">
       {/* 3D Iridescent Floating Spheres & Gradient Background */}
@@ -141,6 +172,7 @@ export function App() {
           onUserChange={setActiveUser}
           onOpenUpload={() => setIsUploadOpen(true)}
           escalatedCount={stats?.escalated_count ?? 0}
+          onLogout={handleLogout}
         />
 
         {/* Main Floating Glass Stage */}
