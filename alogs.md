@@ -796,3 +796,22 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 781ms.
   - Status: PASS.
+
+### [2026-11-18 14:03:00 +05:30] Fix 2: Target ERP Database Search, Filtering & Ledger KPI Analytics
+
+- **Actor / Mode**: Senior Frontend Engineer & UI/UX Specialist
+- **Phase / Scope**: Destination ERP Ledger Egress & Reconciliation UI
+- **Files Modified / Created**:
+  - `frontend/src/components/TargetERPViewer.tsx` (Modified): Added real-time client-side search input filtering delivered vouchers by invoice number, vendor name, or supplier GSTIN; integrated 3 liquid glass KPI summary cards (Delivered Vouchers count, Total Settled Value, Input Tax Credit claimable); implemented empty search state with 1-click filter reset.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Added `metrics` useMemo aggregating total count, grand total amount, and tax amount across all settled ERP records.
+  - Added `filteredInvoices` supporting case-insensitive searching on invoice numbers, supplier names, reference IDs, and GSTINs.
+  - Rendered 3 liquid glass KPI cards with iridescent icons and gradients.
+  - Added clear search button and search result counter (`Showing X of Y posted vouchers`).
+- **Why (Rationale & Purpose)**:
+  - Fixes missing connection and usability bottleneck where enterprise reviewers could not search or audit large volumes of settled ERP postings or inspect aggregate tax credits.
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 559ms.
+  - Live Browser QA subagent actively verifying KPI cards, search bar, and empty search states.
+  - Status: PASS.

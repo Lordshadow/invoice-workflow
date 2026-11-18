@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Database, 
   RotateCw, 
@@ -6,7 +6,12 @@ import {
   ChevronRight, 
   ChevronDown, 
   Building2,
-  ArrowLeft
+  ArrowLeft,
+  Search,
+  Receipt,
+  TrendingUp,
+  XCircle,
+  FileText
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { CompanyInvoice } from '../types/invoice';
@@ -19,6 +24,7 @@ export const TargetERPViewer: React.FC<TargetERPViewerProps> = ({ onBack }) => {
   const [invoices, setInvoices] = useState<CompanyInvoice[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const fetchDelivered = async () => {
     try {
@@ -40,6 +46,29 @@ export const TargetERPViewer: React.FC<TargetERPViewerProps> = ({ onBack }) => {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
+  const metrics = useMemo(() => {
+    const totalCount = invoices.length;
+    const totalAmount = invoices.reduce((acc, inv) => acc + (inv.grand_total || 0), 0);
+    const totalTax = invoices.reduce((acc, inv) => acc + (inv.tax_amount || 0), 0);
+    return {
+      totalCount,
+      totalAmount,
+      totalTax,
+    };
+  }, [invoices]);
+
+  const filteredInvoices = useMemo(() => {
+    if (!searchQuery.trim()) return invoices;
+    const q = searchQuery.toLowerCase().trim();
+    return invoices.filter(
+      (inv) =>
+        inv.invoice_number.toLowerCase().includes(q) ||
+        inv.supplier_name.toLowerCase().includes(q) ||
+        (inv.supplier_gstin && inv.supplier_gstin.toLowerCase().includes(q)) ||
+        inv.ext_reference_id.toLowerCase().includes(q)
+    );
+  }, [invoices, searchQuery]);
+
   return (
     <section className="max-w-[1600px] mx-auto px-4 sm:px-6 mb-12 animate-in fade-in duration-200">
       {/* Top Breadcrumb & Return to Registry */}
@@ -59,9 +88,54 @@ export const TargetERPViewer: React.FC<TargetERPViewerProps> = ({ onBack }) => {
         </div>
       )}
 
+      {/* KPI Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="liquid-card-frosted p-4 rounded-2xl border border-white/90 shadow-md flex items-center space-x-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white flex items-center justify-center shadow-sm shrink-0">
+            <Receipt className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Delivered Vouchers
+            </div>
+            <div className="text-lg font-black text-slate-900 font-mono">
+              {metrics.totalCount} <span className="text-xs font-semibold text-slate-500">Postings</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="liquid-card-frosted p-4 rounded-2xl border border-white/90 shadow-md flex items-center space-x-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center shadow-sm shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Total Settled Value
+            </div>
+            <div className="text-lg font-black text-slate-900 font-mono">
+              ₹{metrics.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+        </div>
+
+        <div className="liquid-card-frosted p-4 rounded-2xl border border-white/90 shadow-md flex items-center space-x-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-sm shrink-0">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Input Tax Credit (ITC)
+            </div>
+            <div className="text-lg font-black text-slate-900 font-mono">
+              ₹{metrics.totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="liquid-card-frosted rounded-squircle-lg p-6 shadow-2xl border border-white/90">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-indigo-100">
+        {/* Header & Search Bar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-indigo-100">
           <div>
             <div className="flex items-center space-x-2">
               <Database className="w-5 h-5 text-indigo-600" />
@@ -74,14 +148,36 @@ export const TargetERPViewer: React.FC<TargetERPViewerProps> = ({ onBack }) => {
             </p>
           </div>
 
-          <button
-            onClick={fetchDelivered}
-            disabled={loading}
-            className="px-4 py-2 rounded-2xl crystal-pill text-xs font-bold text-slate-700 hover:text-indigo-900 flex items-center space-x-1.5 border border-white/80 shadow-sm"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
-            <span>Refresh Ledger</span>
-          </button>
+          <div className="flex items-center space-x-2.5">
+            {/* Search Input */}
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search vendor, invoice #, GSTIN..."
+                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl crystal-input placeholder-slate-400 font-medium"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={fetchDelivered}
+              disabled={loading}
+              className="px-4 py-2 rounded-2xl crystal-pill text-xs font-bold text-slate-700 hover:text-indigo-900 flex items-center space-x-1.5 border border-white/80 shadow-sm shrink-0"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
         {/* Invoices List */}
@@ -98,9 +194,27 @@ export const TargetERPViewer: React.FC<TargetERPViewerProps> = ({ onBack }) => {
               Invoices will appear here automatically once Straight-Through Processed (STP) or approved by a human checker.
             </p>
           </div>
+        ) : filteredInvoices.length === 0 ? (
+          <div className="py-12 text-center text-slate-500">
+            <FileText className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <div className="text-sm font-bold text-slate-800">No Matching ERP Records</div>
+            <p className="text-xs text-slate-500 mt-1">
+              No postings match &ldquo;{searchQuery}&rdquo;.
+            </p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="mt-3 px-3.5 py-1.5 rounded-xl crystal-pill text-xs font-bold text-indigo-700 hover:text-indigo-900 border border-indigo-200"
+            >
+              Clear Filter
+            </button>
+          </div>
         ) : (
           <div className="space-y-3">
-            {invoices.map((inv) => {
+            <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between px-1">
+              <span>Showing {filteredInvoices.length} of {invoices.length} posted vouchers</span>
+              <span>Sorted by Post Date (Desc)</span>
+            </div>
+            {filteredInvoices.map((inv) => {
               const isExpanded = expandedId === inv.id;
               return (
                 <div
