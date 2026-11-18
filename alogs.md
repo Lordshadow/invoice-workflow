@@ -592,3 +592,36 @@ This file records all architectural decisions, file creations, modifications, QA
   - Executed `test_real_sample_data.py`: **4 passed, 0 failed** (100% pass rate).
   - Executed `test_escalation_and_stp.py`: **15 passed, 0 failed** (100% pass rate).
   - Status: PASS.
+
+
+### [2026-11-18 10:22:00 +05:30] Phase 6: Human-in-the-Loop Review Dashboard & Crystal Glassmorphic UI
+
+- **Actor / Mode**: Senior Frontend Developer & Senior Backend Developer
+- **Phase / Scope**: Phase 6 — Human-in-the-Loop (HITL) Review Dashboard & Frontend Engineering
+- **Files Modified / Created**:
+  - `backend/app/routers/invoices.py` (Modified): Added `GET /api/v1/invoices/{id}/file` endpoint to stream original PDF/image files for frontend canvas/document preview.
+  - `frontend/package.json` (Created): Initialized React 18 + TypeScript + Vite + Tailwind CSS + Lucide React + @tailwindcss/postcss project.
+  - `frontend/vite.config.ts` (Created): Configured API reverse proxy to FastAPI (`/api` and `/uploads` -> `http://127.0.0.1:8000`).
+  - `frontend/tailwind.config.js` (Created): Defined custom crystal glassmorphism palettes (`crystal-board`, `crystal-card`, `crystal-pill`, `pod-purple`, `pod-blue`, `pod-coral`, `pod-emerald`).
+  - `frontend/src/index.css` (Created): Recreated 3D crystal luminous glass theme from user's reference image (warm pastel ambient background, milky refractive frosted glass, luminous gradient pods).
+  - `frontend/src/types/invoice.ts` (Created): Strict TypeScript contracts matching backend DTOs (`InvoiceDetail`, `InvoiceSummary`, `LineItem`, `EscalationStats`, `CompanyInvoice`).
+  - `frontend/src/services/api.ts` (Created): Typed API client with complete error handling for all lifecycle, escalation, upload, and ERP egress endpoints.
+  - `frontend/src/components/Navbar.tsx` (Created): Top frosted glass header with live connection status, Maker-Checker persona switcher (Accountant vs Approver), and upload action.
+  - `frontend/src/components/KPICards.tsx` (Created): Luminous wave chart, 68% progress ring, and vertical glowing squircle metric cards stack (Total Invoices, STP Rate, Escalations, ERP Postings).
+  - `frontend/src/components/InvoiceQueue.tsx` (Created): Filterable data table with search, category filters, confidence meters, and one-click review launch.
+  - `frontend/src/components/DocumentViewer.tsx` (Created): Left-pane canvas/viewer with zoom in/out/reset, 90° rotation, external window open, and file download.
+  - `frontend/src/components/InvoiceEditor.tsx` (Created): Right-pane line-item grid, real-time client-side arithmetic reconciliation bar with instant variance feedback, and Maker-Checker self-approval prevention guard.
+  - `frontend/src/components/SplitScreenReview.tsx` (Created): Coordinated split-screen review workspace with toast alerts and OCC conflict handling.
+  - `frontend/src/components/TargetERPViewer.tsx` (Created): Destination Target Company ERP ledger inspector displaying `company_invoices` and `company_invoice_lines`.
+  - `frontend/src/components/UploadModal.tsx` (Created): Drag-and-drop document upload modal with STP fast-path toggle and instant processing feedback.
+  - `frontend/src/App.tsx` (Created): Root application coordinating vertical glass sidebar rail, main floating crystal stage, auto-polling (12s), and seamless screen transitions.
+- **What Changed**:
+  - Built the entire React 18 + TypeScript + Tailwind CSS Human-in-the-Loop review dashboard matching the user's reference image with high-fidelity crystal glassmorphism.
+  - Enforced zero boilerplate text; strictly professional financial and ERP terminology throughout.
+  - Enforced Maker-Checker governance in the UI: dynamically disables self-approval if an accountant edited the invoice, with clear role switching for approvers.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "start next phase , use the above image for ui theme , make the ui more user friendly and do pu unwanted stuffs and also make sure to be not like AI made text and unwanted text make it professional" and "use this image as reference the ui should come like this".
+- **QA & Verification Status**:
+  - Ran `tsc -b && vite build`: **Built successfully in 680ms with 0 errors**.
+  - Status: PASS.
+

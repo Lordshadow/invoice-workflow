@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -571,6 +572,33 @@ def get_invoice(invoice_id: str, db: Session = Depends(get_db)):
         extractions=extractions,
         audit_logs=audit_logs
     )
+
+
+@router.get("/{invoice_id}/file", summary="Stream Original Invoice Document File")
+def get_invoice_file(invoice_id: str, db: Session = Depends(get_db)):
+    """Streams the original physical PDF or image file for frontend viewer display."""
+    inv = db.get(Invoice, invoice_id)
+    if not inv or not inv.document or not inv.document.file_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice file not found.")
+
+    file_path = Path(inv.document.file_path)
+    if not file_path.is_file():
+        # Fallback check in uploads or samples
+        candidate_uploads = settings.UPLOAD_DIR / file_path.name
+        candidate_samples = Path("samples") / file_path.name
+        if candidate_uploads.is_file():
+            file_path = candidate_uploads
+        elif candidate_samples.is_file():
+            file_path = candidate_samples
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File on disk '{file_path.name}' not found.")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=inv.document.mime_type or "application/octet-stream",
+        filename=inv.document.file_name or file_path.name
+    )
+
 
 
 @router.post("/{invoice_id}/approve", response_model=InvoiceDetailDTO, summary="Approve Invoice & Deliver to Target DB")
