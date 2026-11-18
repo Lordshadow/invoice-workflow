@@ -239,7 +239,7 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white text-xs font-black flex items-center space-x-1.5 transition-all shadow-md shadow-indigo-500/20 border border-white/60 cursor-pointer active:scale-95"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>+ Register New Staff</span>
+              <span>Register New Staff</span>
             </button>
             {onBack && (
               <button
@@ -453,10 +453,10 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
         </div>
 
         {/* Staff Table */}
-        <div className="overflow-x-auto rounded-2xl border border-white/60 bg-white/40">
+        <div className="overflow-x-auto md:overflow-visible rounded-2xl border border-white/70 bg-white/50 backdrop-blur-md shadow-xs">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/60 bg-white/60 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+            <thead className="border-b border-slate-200/80 bg-white/80 text-[10px] font-extrabold text-slate-600 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
+              <tr>
                 <th className="py-3 px-4">Staff Member</th>
                 <th className="py-3 px-4">Governance Role</th>
                 <th className="py-3 px-4">Account Status</th>
@@ -473,9 +473,10 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
                   </td>
                 </tr>
               ) : (
-                filteredStaff.map((staff) => {
+                filteredStaff.map((staff, index) => {
                   const isPrimaryAdmin = staff.username === 'admin';
                   const isWorking = actionInProgress === (staff.id || staff.username);
+                  const isNearBottom = index >= Math.max(1, filteredStaff.length - 2);
 
                   return (
                     <tr key={staff.id || staff.username} className="hover:bg-white/60 transition-colors">
@@ -518,7 +519,9 @@ export const AdminStaffPortal: React.FC<AdminStaffPortalProps> = ({ activeUser, 
                             </button>
 
                             {openRoleMenuId === (staff.id || staff.username) && (
-                              <div className="absolute left-0 mt-1.5 w-56 rounded-2xl bg-white shadow-2xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                              <div className={`absolute left-0 w-56 rounded-2xl bg-white shadow-2xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                                isNearBottom ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                              }`}>
                                 <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-100 mb-1">
                                   Change Governance Role
                                 </div>

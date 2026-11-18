@@ -1358,3 +1358,27 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Frontend build: **Clean compilation with 0 errors in 450ms**.
   - Status: PASS.
+
+
+### [2026-11-18 22:36:00 +05:30] Fix: Governance Tab Table Layout, Sticky Header, and Direction-Aware Dropdown
+
+- **Actor / Mode**: Senior Frontend Engineer & UI Specialist
+- **Phase / Scope**: Governance Tab Layout, Table Overflow Management & Dropdown Positioning
+- **Files Modified / Created**:
+  - `frontend/src/components/AdminStaffPortal.tsx` (Modified):
+    - Removed redundant `+` in button text, changing `+ Register New Staff` to `Register New Staff`.
+    - Added `md:overflow-visible` to table container to prevent Chromium from forcing `overflow-y: auto` when `overflow-x` is enabled, eliminating internal table vertical scrolling.
+    - Anchored `<thead>` with `sticky top-0 z-10 backdrop-blur-md` so column headers remain permanently visible.
+    - Implemented smart direction-aware dropdown positioning (`isNearBottom ? 'bottom-full mb-1.5' : 'top-full mt-1.5'`), causing dropdowns on bottom rows (e.g. John Doe, Sarah Jenkins) to open upwards above the row rather than downwards below the table card.
+  - `frontend/dist/` (Rebuilt):
+    - Recompiled production bundle with `tsc -b && vite build` in 381ms.
+- **What Changed**:
+  - Fixed vertical clipping and missing `<thead>` / top rows in the Staff & Governance directory table caused by bottom-row dropdown downward expansion and browser auto-scrolling.
+  - Cleaned up duplicate `+` character in Register New Staff button.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "ui bugs in governence tab" (fixing cropped table header, scrolled-off top rows, and dropdown positioning).
+- **QA & Verification Status**:
+  - Production build: `tsc -b && vite build` completed in 381ms with 0 errors.
+  - Live server: Verified serving updated static bundle at `http://127.0.0.1:8000/dashboard/`.
+  - Status: PASS.
+
