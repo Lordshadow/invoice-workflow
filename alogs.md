@@ -681,7 +681,32 @@ This file records all architectural decisions, file creations, modifications, QA
   - Status: PASS.
 
 
-### [2026-11-18 12:35:00 +05:30] Comprehensive UI/UX Audit, True Split-Screen Architecture & Visual Contrast Remediation
+### [2026-11-18 13:00:00 +05:30] Complete Liquid Glass Morphism Rebuild for Ingestion & Modals
+
+- **Actor / Mode**: Senior Frontend Engineer & UI/UX Specialist
+- **Phase / Scope**: Ingest Modal Liquid Glass Architecture, Custom Glass Dropdown & iOS-Style Toggle Controls
+- **Files Modified / Created**:
+  - `frontend/src/index.css` (Modified): Replaced flat opaque `.liquid-modal-glass` with authentic Liquid Glass Morphism—radial light caustics (`radial-gradient(circle at 90% 10%, rgba(147, 197, 253, 0.45)...)`), frosted translucent linear gradient (68% to 48%), `backdrop-filter: blur(36px) saturate(220%)`, multi-layered outer drop shadows, and 3D specular rim highlights. Added `.liquid-well-glass` for the frosted dropzone well with dashed border and reactive hover glow.
+  - `frontend/src/components/UploadModal.tsx` (Rewritten): 
+    - Replaced the flat white dialog with authentic `.liquid-modal-glass` with internal ambient light spheres.
+    - Completely replaced the native Windows OS `<select>` dropdown (which produced an opaque white popup with invisible text) with a custom **Liquid Glass Floating Dropdown** featuring channel icons, descriptions, status badges, and active state checkmarks.
+    - Upgraded the dropzone to `.liquid-well-glass` with a 3D levitating icon and format pills (`PDF Vector`, `JPEG / PNG`, `B2B QR Code`).
+    - Added an interactive iOS-style liquid toggle switch for Straight-Through Processing (STP).
+    - Upgraded action buttons to glowing liquid gradients (`from-indigo-600 via-indigo-500 to-cyan-500`) with hover sheen and frosted circular close button.
+  - `frontend/src/components/InvoiceEditor.tsx` (Modified): Updated Reject Confirmation Modal with `.liquid-modal-glass` and soft backdrop veil for visual consistency across all modal interfaces.
+  - `frontend/dist/` (Rebuilt): Built production bundle with `tsc -b && vite build` in 628ms with 0 errors.
+- **What Changed**:
+  - Transformed the flat white dialog into an authentic Liquid Glass Morphism component matching the dashboard's design system.
+  - Completely eradicated the native Windows select menu defect where dropdown options were unreadable.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "where is the liquid glass morphism style for this one" referencing the Ingest Invoice Document modal.
+- **QA & Verification Status**:
+  - Verified live via browser subagent at `http://127.0.0.1:8000/dashboard/`.
+  - Photographic proof confirmed:
+    - `step_213_shot_1_liquid_glass_ingest_modal_channel_dropdown.png`: Full liquid glass modal with open custom glass dropdown.
+    - `step_217_shot_1_liquid_glass_ingest_modal_whatsapp_toggled.png`: Interactive channel selection and STP liquid toggle.
+  - Status: PASS.
+
 
 - **Actor / Mode**: Senior Frontend Engineer & UI/UX Browser QA Specialist
 - **Phase / Scope**: Split-Screen Document Review, Popover/Modal Contrast Isolation, SVG Spline Numeric Hardening & Registry Layout Polish

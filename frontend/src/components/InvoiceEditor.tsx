@@ -717,10 +717,12 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
 
       {/* Reject Confirmation Modal */}
       {rejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md">
-          <div className="w-full max-w-md crystal-card rounded-squircle p-6 shadow-2xl border border-white/90">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-md liquid-modal-glass p-6 sm:p-7 shadow-2xl relative border border-white/90">
             <h3 className="text-sm font-bold text-slate-900 mb-2 flex items-center space-x-2">
-              <XCircle className="w-4 h-4 text-rose-600" />
+              <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <XCircle className="w-4 h-4" />
+              </div>
               <span>Reject Invoice Document</span>
             </h3>
             <p className="text-xs text-slate-600 mb-4 font-medium">
@@ -739,7 +741,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
             <div className="flex items-center justify-end space-x-2">
               <button
                 onClick={() => setRejectModalOpen(false)}
-                className="px-4 py-2 rounded-xl crystal-pill text-xs font-bold text-slate-600 hover:text-slate-900"
+                className="px-4 py-2 rounded-xl liquid-pill text-xs font-bold text-slate-700 hover:text-slate-900 border border-white/80 cursor-pointer"
               >
                 Cancel
               </button>
@@ -750,7 +752,7 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
                   setRejectModalOpen(false);
                 }}
                 disabled={!rejectionReason.trim() || rejecting}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-50 shadow-sm"
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white text-xs font-bold shadow-md shadow-rose-500/25 active:scale-95 cursor-pointer disabled:opacity-50"
               >
                 Confirm Rejection
               </button>
