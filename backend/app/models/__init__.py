@@ -19,6 +19,11 @@ from backend.app.models.target_company import (
     CompanyInvoiceLine,
     TargetBase,
 )
+from backend.app.models.user import (
+    User,
+    UserRole,
+    UserStatus,
+)
 
 __all__ = [
     "Document",
@@ -34,4 +39,7 @@ __all__ = [
     "CompanyInvoice",
     "CompanyInvoiceLine",
     "TargetBase",
+    "User",
+    "UserRole",
+    "UserStatus",
 ]

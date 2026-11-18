@@ -84,6 +84,14 @@ def init_db():
 
     logger.info("Database schemas initialized successfully.")
 
+    # Bootstrap default users if empty
+    try:
+        from backend.app.services.security import bootstrap_initial_users
+        with SessionLocal() as db_session:
+            bootstrap_initial_users(db_session)
+    except Exception as e:
+        logger.warning(f"Could not bootstrap initial users during init_db: {e}")
+
 
 def get_db() -> Generator[Session, None, None]:
     """FastAPI Dependency for Primary Pipeline DB Session."""

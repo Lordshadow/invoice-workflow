@@ -15,9 +15,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend.app.config import settings
 from backend.app.db.session import init_db
 from backend.app.routers.auth import router as auth_router
+from backend.app.routers.admin import router as admin_router
 from backend.app.routers.document_processing import router as document_router
 from backend.app.routers.extraction import router as extraction_router
+from backend.app.routers.ingest import router as ingest_router
 from backend.app.routers.invoices import router as invoices_router, target_router
+from backend.app.services.email_poller import email_poller_service
 
 # Configure root logger
 log_level = logging.DEBUG if settings.DEBUG else logging.INFO
@@ -41,7 +44,12 @@ async def lifespan(app: FastAPI):
         from backend.app.services.delivery_worker import DeliveryWorker
         outbox_task = asyncio.create_task(DeliveryWorker.run_outbox_publisher_loop(interval_seconds=3.0))
         logger.info("Outbox publisher background worker registered and started.")
+        if settings.ENABLE_EMAIL_POLLER:
+            email_poller_service.start()
+            logger.info("Email poller background service registered and started.")
     yield
+    if settings.ENABLE_EMAIL_POLLER:
+        email_poller_service.stop()
     if outbox_task and not outbox_task.done():
         logger.info("Stopping outbox publisher worker...")
         outbox_task.cancel()
@@ -91,9 +99,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Register API Routers
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(admin_router, prefix=settings.API_V1_PREFIX)
 app.include_router(document_router, prefix=settings.API_V1_PREFIX)
 app.include_router(extraction_router, prefix=settings.API_V1_PREFIX)
 app.include_router(invoices_router, prefix=settings.API_V1_PREFIX)
+app.include_router(ingest_router, prefix=settings.API_V1_PREFIX)
 app.include_router(target_router, prefix=settings.API_V1_PREFIX)
 
 # Optional static dashboard mounting if frontend is built

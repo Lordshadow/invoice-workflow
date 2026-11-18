@@ -8,56 +8,26 @@ import {
   Cpu, 
   Database,
   ChevronDown,
-  Check,
   LogOut,
-  Sparkles,
   Menu,
   X
 } from 'lucide-react';
 import type { UserSession } from '../types/invoice';
 
 interface NavbarProps {
-  currentTab: 'queue' | 'escalated' | 'target_erp';
-  onTabChange: (tab: 'queue' | 'escalated' | 'target_erp') => void;
+  currentTab: 'queue' | 'escalated' | 'target_erp' | 'admin';
+  onTabChange: (tab: 'queue' | 'escalated' | 'target_erp' | 'admin') => void;
   activeUser: UserSession;
-  onUserChange: (user: UserSession) => void;
+  onUserChange?: (user: UserSession) => void;
   onOpenUpload: () => void;
   escalatedCount: number;
   onLogout: () => void;
 }
 
-const PRESET_USERS: UserSession[] = [
-  {
-    username: 'sarah.approver',
-    fullName: 'Sarah Jenkins',
-    role: 'APPROVER',
-    title: 'Financial Controller / Senior Approver',
-    email: 'sarah.jenkins@enterprise.com',
-    department: 'Corporate Financial Governance',
-  },
-  {
-    username: 'john.accountant',
-    fullName: 'John Doe',
-    role: 'ACCOUNTANT',
-    title: 'Senior Accounts Payable Specialist',
-    email: 'john.doe@enterprise.com',
-    department: 'Accounts Payable Operations',
-  },
-  {
-    username: 'alex.supervisor',
-    fullName: 'Alex Vance',
-    role: 'SUPERVISOR',
-    title: 'Chief Financial Controller & Administrator',
-    email: 'alex.vance@enterprise.com',
-    department: 'Executive Leadership & Audit',
-  },
-];
-
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onTabChange,
   activeUser,
-  onUserChange,
   onOpenUpload,
   escalatedCount,
   onLogout,
@@ -149,6 +119,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Target ERP Ledger</span>
             </span>
           </button>
+
+          {(activeUser.role === 'ADMIN' || activeUser.role === 'SUPERVISOR') && (
+            <button
+              onClick={() => onTabChange('admin')}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+                currentTab === 'admin'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-slate-700 hover:text-purple-900 hover:bg-white/50'
+              }`}
+            >
+              <span className="flex items-center space-x-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Staff & Governance</span>
+              </span>
+            </button>
+          )}
         </nav>
 
         {/* Right: Authenticated User Persona & Ingest Action */}
@@ -235,40 +221,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
-              {/* Fast Switch Role Options */}
-              <div className="mt-2.5">
-                <div className="px-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center space-x-1">
-                  <Sparkles className="w-3 h-3 text-indigo-600" />
-                  <span>Switch Role / User</span>
+              {/* Verified Account Details */}
+              <div className="mt-3 p-3 rounded-xl bg-white/40 border border-white/60 space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span className="font-bold text-slate-500">Department:</span>
+                  <span className="font-semibold text-slate-800 truncate max-w-[140px]">{activeUser.department || 'Finance & Accounts'}</span>
                 </div>
-                <div className="space-y-1">
-                  {PRESET_USERS.map((u) => {
-                    const isSelected = activeUser.username === u.username;
-                    return (
-                      <button
-                        key={u.username}
-                        onClick={() => {
-                          onUserChange(u);
-                          setIsDropdownOpen(false);
-                        }}
-                        className={`w-full px-2.5 py-1.5 rounded-xl text-left text-xs transition-all duration-150 flex items-center justify-between cursor-pointer border ${
-                          isSelected
-                            ? 'bg-white/80 border-indigo-400/60 font-bold text-slate-900 shadow-xs'
-                            : 'bg-white/30 border-transparent text-slate-700 hover:bg-white/60'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-[11px] font-bold">{u.fullName}</div>
-                          <div className="text-[9px] opacity-75 font-medium">
-                            {u.role === 'ACCOUNTANT' ? 'Staff Maker' : u.role === 'APPROVER' ? 'Executive Approver' : 'Admin'}
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center justify-between text-slate-600">
+                  <span className="font-bold text-slate-500">Governance Status:</span>
+                  <span className="font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full text-[10px]">
+                    Active Verified
+                  </span>
                 </div>
               </div>
 
@@ -280,7 +243,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsDropdownOpen(false);
                     onLogout();
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/40 text-rose-800 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all duration-150 cursor-pointer shadow-xs"
+                  className="w-full px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/40 text-rose-800 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all duration-150 cursor-pointer shadow-xs active:scale-95"
                 >
                   <LogOut className="w-3.5 h-3.5 text-rose-600" />
                   <span>Sign Out of Workspace</span>
@@ -373,6 +336,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <span className="text-[10px] opacity-80 font-normal">ACID Egress</span>
           </button>
+
+          {(activeUser.role === 'ADMIN' || activeUser.role === 'SUPERVISOR') && (
+            <button
+              onClick={() => {
+                onTabChange('admin');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
+                currentTab === 'admin'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-slate-700 hover:bg-white/60 bg-white/30'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Staff & Governance</span>
+              </div>
+              <span className="text-[10px] opacity-80 font-normal">Admin Portal</span>
+            </button>
+          )}
         </div>
       )}
     </header>

@@ -1,119 +1,212 @@
 """
 FastAPI Router for Corporate Authentication, Role-Based Access, and Session Management.
-Supports Staff Accountants (Makers), Executive Approvers (Checkers), and Finance Administrators.
+Backbone for Staff Self-Registration, Password Hashing, and Administrator Approval Enforcement.
 """
-import uuid
-from typing import Dict
-from fastapi import APIRouter, HTTPException, status
-from backend.app.schemas.auth import LoginRequest, LoginResponse, UserSessionDTO
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Header, status
+from sqlalchemy.orm import Session
+from sqlalchemy import select, or_, func
 
+from backend.app.db.session import get_db
+from backend.app.models.user import User, UserRole, UserStatus
+from backend.app.schemas.auth import (
+    LoginRequest, 
+    LoginResponse, 
+    RegisterRequest, 
+    RegisterResponse, 
+    UserSessionDTO
+)
+from backend.app.services.security import (
+    hash_password, 
+    verify_password, 
+    generate_session_token, 
+    verify_session_token
+)
+
+logger = logging.getLogger("invoice_processor.auth")
 router = APIRouter(prefix="/auth", tags=["Authentication & Access Control"])
 
-# Pre-configured enterprise users
-ENTERPRISE_USERS: Dict[str, dict] = {
-    "sarah.approver": {
-        "username": "sarah.approver",
-        "fullName": "Sarah Jenkins",
-        "role": "APPROVER",
-        "title": "Financial Controller / Executive Approver",
-        "email": "sarah.jenkins@enterprise.com",
-        "department": "Corporate Financial Governance",
-    },
-    "approver": {
-        "username": "sarah.approver",
-        "fullName": "Sarah Jenkins",
-        "role": "APPROVER",
-        "title": "Financial Controller / Executive Approver",
-        "email": "sarah.jenkins@enterprise.com",
-        "department": "Corporate Financial Governance",
-    },
-    "john.accountant": {
-        "username": "john.accountant",
-        "fullName": "John Doe",
-        "role": "ACCOUNTANT",
-        "title": "Senior Accounts Payable Specialist",
-        "email": "john.doe@enterprise.com",
-        "department": "Accounts Payable Operations",
-    },
-    "accountant": {
-        "username": "john.accountant",
-        "fullName": "John Doe",
-        "role": "ACCOUNTANT",
-        "title": "Senior Accounts Payable Specialist",
-        "email": "john.doe@enterprise.com",
-        "department": "Accounts Payable Operations",
-    },
-    "alex.supervisor": {
-        "username": "alex.supervisor",
-        "fullName": "Alex Vance",
-        "role": "SUPERVISOR",
-        "title": "Chief Financial Controller & Administrator",
-        "email": "alex.vance@enterprise.com",
-        "department": "Executive Leadership & Audit",
-    },
-    "admin": {
-        "username": "alex.supervisor",
-        "fullName": "Alex Vance",
-        "role": "SUPERVISOR",
-        "title": "Chief Financial Controller & Administrator",
-        "email": "alex.vance@enterprise.com",
-        "department": "Executive Leadership & Audit",
-    },
-}
 
-
-@router.post("/login", response_model=LoginResponse, summary="Authenticate Enterprise User")
-def login(request: LoginRequest):
+def get_current_user(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+) -> User:
     """
-    Authenticates corporate users (Accountants, Executive Approvers, Administrators)
-    and returns a session token with role-based permissions.
+    FastAPI dependency resolving the authenticated User entity from the Bearer token.
+    Enforces token validity and active account status.
     """
-    key = request.username.strip().lower()
-    
-    # Check if user exists in directory
-    user_info = ENTERPRISE_USERS.get(key)
-    if not user_info:
-        # Allow default enterprise test password if valid username pattern
-        if "@" in key:
-            prefix = key.split("@")[0].lower()
-            user_info = ENTERPRISE_USERS.get(prefix)
-            
-    if not user_info:
-        # Default fallback for testing with explicit credentials
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid corporate credentials. Please select a valid profile: sarah.approver, john.accountant, or admin."
+            detail="Missing or malformed Authorization header. Expected 'Bearer <token>'."
         )
-
-    # In enterprise demo mode, allow valid non-empty passwords
-    if not request.password or len(request.password.strip()) < 3:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 3 characters."
-        )
-
-    session_token = f"lf_tok_{uuid.uuid4().hex}"
     
-    return LoginResponse(
-        token=session_token,
-        user=UserSessionDTO(
-            username=user_info["username"],
-            fullName=user_info["fullName"],
-            role=user_info["role"],
-            title=user_info["title"],
-            email=user_info["email"],
-            department=user_info["department"],
-        ),
-        message=f"Welcome back, {user_info['fullName']}."
+    token = authorization.split(" ")[1].strip()
+    payload = verify_session_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid, expired, or tampered session token. Please log in again."
+        )
+    
+    user = db.get(User, payload["user_id"])
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account associated with this token no longer exists."
+        )
+    
+    if user.status != UserStatus.ACTIVE.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Account is inactive ({user.status}). Please contact an Administrator."
+        )
+    
+    return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    FastAPI dependency restricting endpoint execution strictly to Administrators.
+    """
+    if current_user.role not in (UserRole.ADMIN.value, "SUPERVISOR"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required to perform this action."
+        )
+    return current_user
+
+
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED, summary="Staff Self-Registration")
+def register_staff(request: RegisterRequest, db: Session = Depends(get_db)):
+    """
+    Registers a new staff member (Accountant Maker or Executive Approver).
+    All self-registered accounts are created in 'PENDING_APPROVAL' state,
+    requiring review and activation by an Administrator before login is permitted.
+    """
+    clean_username = request.username.strip().lower()
+    clean_email = request.email.strip().lower()
+
+    # Check for existing username or email
+    stmt = select(User).where(
+        or_(
+            func.lower(User.username) == clean_username,
+            func.lower(User.email) == clean_email
+        )
+    )
+    existing = db.scalar(stmt)
+    if existing:
+        if existing.username.lower() == clean_username:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Username '{clean_username}' is already registered."
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Email '{clean_email}' is already associated with an account."
+            )
+
+    # Validate requested role
+    role_normalized = request.requested_role.strip().upper()
+    if role_normalized not in (UserRole.ACCOUNTANT.value, UserRole.APPROVER.value):
+        role_normalized = UserRole.ACCOUNTANT.value
+
+    # Hash password with PBKDF2-HMAC-SHA256
+    pwd_hash, salt = hash_password(request.password)
+
+    new_user = User(
+        username=clean_username,
+        email=clean_email,
+        full_name=request.full_name.strip(),
+        password_hash=pwd_hash,
+        password_salt=salt,
+        role=role_normalized,
+        status=UserStatus.PENDING_APPROVAL.value,
+        department=request.department.strip() or "Finance & Accounts"
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    logger.info(f"New staff account registered: {new_user.username} (role={new_user.role}, status=PENDING_APPROVAL)")
+
+    return RegisterResponse(
+        user_id=new_user.id,
+        username=new_user.username,
+        status=new_user.status,
+        message="Registration submitted successfully. Your account is pending Administrator review and approval."
     )
 
 
-@router.get("/users", summary="List Available Corporate Personas")
-def list_personas():
-    """Returns available corporate personas for quick switcher and role governance."""
-    unique_users = [
-        ENTERPRISE_USERS["sarah.approver"],
-        ENTERPRISE_USERS["john.accountant"],
-        ENTERPRISE_USERS["alex.supervisor"],
-    ]
-    return unique_users
+@router.post("/login", response_model=LoginResponse, summary="Authenticate Corporate User")
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Authenticates corporate users against persistent database credentials.
+    Rejects pending, suspended, or rejected staff accounts.
+    """
+    query_str = request.username.strip().lower()
+    
+    # Locate user by username or email
+    stmt = select(User).where(
+        or_(
+            func.lower(User.username) == query_str,
+            func.lower(User.email) == query_str
+        )
+    )
+    user = db.scalar(stmt)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid corporate username or password."
+        )
+
+    # Verify password hash
+    if not verify_password(request.password, user.password_hash, user.password_salt):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid corporate username or password."
+        )
+
+    # Governance check: Is the user active?
+    if user.status == UserStatus.PENDING_APPROVAL.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your staff registration is pending Administrator approval. Please contact the Financial Controller or Administrator."
+        )
+    elif user.status == UserStatus.SUSPENDED.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been suspended by the Administrator. Please contact corporate security."
+        )
+    elif user.status == UserStatus.REJECTED.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your staff registration application was not approved by the Administrator."
+        )
+    elif user.status != UserStatus.ACTIVE.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Account status is '{user.status}'. Cannot log in."
+        )
+
+    # Update last login timestamp
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+
+    # Generate cryptographically signed bearer token
+    token = generate_session_token(user)
+
+    return LoginResponse(
+        token=token,
+        user=UserSessionDTO(**user.to_session_dict()),
+        message=f"Welcome back, {user.full_name}."
+    )
+
+
+@router.get("/me", response_model=UserSessionDTO, summary="Get Current Authenticated User Profile")
+def get_me(current_user: User = Depends(get_current_user)):
+    """Returns the profile of the currently authenticated session user."""
+    return UserSessionDTO(**current_user.to_session_dict())

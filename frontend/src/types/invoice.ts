@@ -18,14 +18,38 @@ export type InvoiceStatus =
   | 'DELIVERED'
   | 'PUSH_FAILED';
 
-export type UserRole = 'ACCOUNTANT' | 'APPROVER' | 'SUPERVISOR';
+export type UserRole = 'ACCOUNTANT' | 'APPROVER' | 'SUPERVISOR' | 'ADMIN';
+
+export type UserStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED';
 
 export interface UserSession {
+  id?: string;
   username: string;
   role: UserRole;
   fullName: string;
   title?: string;
   email?: string;
+  department?: string;
+  status?: UserStatus;
+  createdAt?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+}
+
+export interface StaffListResponse {
+  total: number;
+  pending_count: number;
+  active_makers: number;
+  active_checkers: number;
+  staff: UserSession[];
+}
+
+export interface RegisterStaffRequest {
+  username: string;
+  email: string;
+  password: string;
+  full_name: string;
+  requested_role: string;
   department?: string;
 }
 

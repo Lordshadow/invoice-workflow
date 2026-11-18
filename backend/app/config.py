@@ -81,6 +81,27 @@ class Settings(BaseModel):
     S3_BUCKET_NAME: str = Field(default_factory=lambda: os.getenv("S3_BUCKET_NAME", "invoices").strip())
     ENABLE_OUTBOX_WORKER: bool = Field(default_factory=lambda: os.getenv("ENABLE_OUTBOX_WORKER", "true").lower() in ("true", "1", "yes"))
 
+    # 7. Automated Email Ingestion (IMAP Poller & Webhook)
+    ENABLE_EMAIL_POLLER: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_EMAIL_POLLER", "false").lower() in ("true", "1", "yes")
+    )
+    IMAP_HOST: str = Field(default_factory=lambda: os.getenv("IMAP_HOST", "").strip())
+    IMAP_PORT: int = Field(default_factory=lambda: int(os.getenv("IMAP_PORT", "993")))
+    IMAP_USER: str = Field(default_factory=lambda: os.getenv("IMAP_USER", "").strip())
+    IMAP_PASSWORD: str = Field(default_factory=lambda: os.getenv("IMAP_PASSWORD", "").strip())
+    IMAP_FOLDER: str = Field(default_factory=lambda: os.getenv("IMAP_FOLDER", "INBOX").strip())
+    IMAP_POLL_INTERVAL_SECONDS: int = Field(
+        default_factory=lambda: int(os.getenv("IMAP_POLL_INTERVAL_SECONDS", "60"))
+    )
+    IMAP_USE_SSL: bool = Field(
+        default_factory=lambda: os.getenv("IMAP_USE_SSL", "true").lower() in ("true", "1", "yes")
+    )
+
+    # 8. Automated WhatsApp Intake
+    WHATSAPP_AUTO_REPLY: bool = Field(
+        default_factory=lambda: os.getenv("WHATSAPP_AUTO_REPLY", "true").lower() in ("true", "1", "yes")
+    )
+
 
 settings = Settings()
 

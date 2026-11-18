@@ -11,7 +11,11 @@ import {
   KeyRound, 
   Eye, 
   EyeOff, 
-  AlertCircle 
+  AlertCircle,
+  Mail,
+  Building,
+  UserPlus,
+  LogIn
 } from 'lucide-react';
 import { LiquidBackground } from './LiquidBackground';
 import { api } from '../services/api';
@@ -21,58 +25,30 @@ interface LoginPageProps {
   onLogin: (user: UserSession) => void;
 }
 
-const PRESET_ACCOUNTS: Array<{
-  username: string;
-  fullName: string;
-  role: 'ACCOUNTANT' | 'APPROVER' | 'SUPERVISOR';
-  title: string;
-  email: string;
-  badge: string;
-  badgeColor: string;
-  description: string;
-}> = [
-  {
-    username: 'sarah.approver',
-    fullName: 'Sarah Jenkins',
-    role: 'APPROVER',
-    title: 'Financial Controller / Senior Approver',
-    email: 'sarah.jenkins@enterprise.com',
-    badge: 'Executive Checker',
-    badgeColor: 'bg-emerald-500/20 text-emerald-800 border-emerald-400/40',
-    description: 'Executive authority to approve audited vouchers and commit directly to the Target ERP ledger.',
-  },
-  {
-    username: 'john.accountant',
-    fullName: 'John Doe',
-    role: 'ACCOUNTANT',
-    title: 'Senior Accounts Payable Specialist',
-    email: 'john.doe@enterprise.com',
-    badge: 'Staff Maker (Editor)',
-    badgeColor: 'bg-indigo-500/20 text-indigo-800 border-indigo-400/40',
-    description: 'Ingests invoices, performs line-item reconciliation, and flags math/duplicate exceptions.',
-  },
-  {
-    username: 'alex.supervisor',
-    fullName: 'Alex Vance',
-    role: 'SUPERVISOR',
-    title: 'Chief Financial Controller & Administrator',
-    email: 'alex.vance@enterprise.com',
-    badge: 'System Administrator',
-    badgeColor: 'bg-purple-500/20 text-purple-800 border-purple-400/40',
-    description: 'System-wide audit trail access, policy thresholds, and destination ERP ledger oversight.',
-  },
-];
-
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
-  const [username, setUsername] = useState('sarah.approver');
-  const [password, setPassword] = useState('approver123');
+  const [activeTab, setActiveTab] = useState<'signin' | 'register'>('signin');
+  
+  // Sign In Form State
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Registration Form State
+  const [regFullName, setRegFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState<'ACCOUNTANT' | 'APPROVER'>('ACCOUNTANT');
+  const [regDepartment, setRegDepartment] = useState('Accounts Payable Operations');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessNotice(null);
     setLoading(true);
 
     try {
@@ -89,10 +65,42 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   };
 
-  const handleSelectPreset = (preset: typeof PRESET_ACCOUNTS[0]) => {
-    setUsername(preset.username);
-    setPassword('password123');
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
+    setSuccessNotice(null);
+    setLoading(true);
+
+    try {
+      const res = await api.register({
+        username: regUsername.trim(),
+        email: regEmail.trim(),
+        password: regPassword,
+        full_name: regFullName.trim(),
+        requested_role: regRole,
+        department: regDepartment.trim(),
+      });
+
+      // Switch to sign-in tab with success notice
+      setActiveTab('signin');
+      setUsername(regUsername.trim());
+      setPassword('');
+      setSuccessNotice(res.message || 'Staff registration submitted! Your account is pending Administrator review and approval.');
+      
+      // Reset registration form
+      setRegFullName('');
+      setRegEmail('');
+      setRegUsername('');
+      setRegPassword('');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Staff registration failed.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -101,10 +109,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       <LiquidBackground />
 
       <div className="relative z-10 max-w-xl w-full mx-auto">
-        {/* Floating Liquid Glass Login Card */}
-        <div className="liquid-card-frosted p-8 sm:p-10 shadow-2xl border-white/80 backdrop-blur-3xl">
+        {/* Floating Liquid Glass Auth Card */}
+        <div className="liquid-card-frosted p-7 sm:p-10 shadow-2xl border-white/80 backdrop-blur-3xl">
           {/* Brand Header */}
-          <div className="flex flex-col items-center text-center pb-6 border-b border-white/40">
+          <div className="flex flex-col items-center text-center pb-5 border-b border-white/40">
             <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg text-white border border-white/70 mb-3">
               <Cpu className="w-8 h-8" />
             </div>
@@ -116,146 +124,323 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </p>
           </div>
 
-          {/* Error Banner */}
-          {error && (
-            <div className="mt-4 p-3 rounded-2xl bg-rose-500/15 border border-rose-400/40 text-rose-800 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-              <span>{error}</span>
+          {/* Tab Switcher: Sign In vs Register Staff */}
+          <div className="mt-5 flex p-1 rounded-2xl bg-white/50 border border-white/80 shadow-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('signin');
+                setError(null);
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                activeTab === 'signin'
+                  ? 'bg-white text-indigo-900 shadow-sm border border-indigo-100'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Staff Sign In</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('register');
+                setError(null);
+                setSuccessNotice(null);
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                activeTab === 'register'
+                  ? 'bg-white text-indigo-900 shadow-sm border border-indigo-100'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Register New Staff</span>
+            </button>
+          </div>
+
+          {/* Success Notice Banner */}
+          {successNotice && (
+            <div className="mt-4 p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-400/40 text-emerald-900 text-xs flex items-start space-x-2.5 animate-in fade-in duration-200">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+              <div className="font-medium">{successNotice}</div>
             </div>
           )}
 
-          {/* Quick Select Profile Pills */}
-          <div className="mt-6">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-              Fast Role Sign-In (Maker-Checker Profiles)
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              {PRESET_ACCOUNTS.map((preset) => {
-                const isSelected = username === preset.username;
-                return (
-                  <button
-                    key={preset.username}
-                    type="button"
-                    onClick={() => handleSelectPreset(preset)}
-                    className={`p-3.5 rounded-2xl text-left border transition-all duration-200 flex items-center justify-between cursor-pointer ${
-                      isSelected
-                        ? 'bg-white/95 border-indigo-600 shadow-lg ring-2 ring-indigo-500/50 scale-[1.01]'
-                        : 'bg-white/50 border-white/70 hover:bg-white/75 hover:border-indigo-200'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                        preset.role === 'APPROVER'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : preset.role === 'ACCOUNTANT'
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'bg-purple-100 text-purple-700'
-                      }`}>
-                        {preset.role === 'APPROVER' ? (
-                          <UserCheck className="w-4 h-4" />
-                        ) : (
-                          <Users className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs font-extrabold text-slate-900">
-                            {preset.fullName}
-                          </span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${preset.badgeColor}`}>
-                            {preset.badge}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-medium">
-                          {preset.title}
-                        </div>
-                      </div>
-                    </div>
-                    {isSelected ? (
-                      <span className="flex items-center space-x-1 text-[10px] font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 shrink-0">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Active</span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-slate-400 group-hover:text-slate-600 shrink-0">
-                        Select
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+          {/* Error Banner */}
+          {error && (
+            <div className="mt-4 p-3.5 rounded-2xl bg-rose-500/15 border border-rose-400/40 text-rose-900 text-xs flex items-start space-x-2.5 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <span className="font-medium">{error}</span>
             </div>
-          </div>
+          )}
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Corporate Username or Email
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. sarah.approver or john.accountant"
-                  required
-                  className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
-                />
+          {/* TAB 1: SIGN IN FORM */}
+          {activeTab === 'signin' && (
+            <form onSubmit={handleSignIn} className="mt-5 space-y-4 animate-in fade-in duration-150">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Corporate Username or Email
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username or corporate email"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                Security Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your corporate password"
-                  required
-                  className="w-full pl-10 pr-10 py-2.5 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
-                />
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    className="w-full pl-10 pr-10 py-2.5 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2">
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/30 border border-white/60 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {loading ? (
+                    <span>Verifying Credentials...</span>
+                  ) : (
+                    <>
+                      <span>Sign In to Workspace</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-cyan-500 hover:from-indigo-700 hover:to-cyan-600 text-white text-xs font-extrabold shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition-all duration-200 active:scale-98 border border-white/30 cursor-pointer mt-2"
-            >
-              {loading ? (
-                <>
-                  <KeyRound className="w-4 h-4 animate-spin" />
-                  <span>Verifying Credentials...</span>
-                </>
-              ) : (
-                <>
-                  <span>Sign In to Executive Dashboard</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+              <div className="text-center pt-2 text-[11px] text-slate-500 font-medium">
+                New staff member?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('register');
+                    setError(null);
+                  }}
+                  className="text-indigo-600 font-bold hover:underline cursor-pointer"
+                >
+                  Register staff account
+                </button>
+              </div>
+            </form>
+          )}
 
-          {/* Compliance & Governance Footer */}
-          <div className="mt-6 pt-4 border-t border-white/40 flex items-center justify-between text-[10px] text-slate-500">
-            <div className="flex items-center space-x-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>SOC-2 Type II Certified</span>
-            </div>
-            <span>Dual-Control Governance Active</span>
+          {/* TAB 2: REGISTER NEW STAFF FORM */}
+          {activeTab === 'register' && (
+            <form onSubmit={handleRegister} className="mt-5 space-y-3.5 animate-in fade-in duration-150">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Full Legal Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={regFullName}
+                      onChange={(e) => setRegFullName(e.target.value)}
+                      placeholder="e.g. Clara Smith"
+                      required
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Corporate Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="e.g. clara@enterprise.com"
+                      required
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Desired Username
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={regUsername}
+                      onChange={(e) => setRegUsername(e.target.value)}
+                      placeholder="e.g. clara.maker"
+                      required
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Password (Min 6 chars)
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type={showRegPassword ? 'text' : 'password'}
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      placeholder="Create secure password"
+                      required
+                      minLength={6}
+                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegPassword(!showRegPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Department
+                </label>
+                <div className="relative">
+                  <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={regDepartment}
+                    onChange={(e) => setRegDepartment(e.target.value)}
+                    placeholder="e.g. Accounts Payable Operations"
+                    required
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Requested Role Selection */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Requested Governance Role
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('ACCOUNTANT')}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                      regRole === 'ACCOUNTANT'
+                        ? 'bg-indigo-50 border-indigo-400 text-indigo-950 shadow-xs'
+                        : 'bg-white/50 border-white/80 text-slate-700 hover:bg-white/80'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Users className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="text-xs font-black">Staff Maker (Accountant)</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Line-item editing, arithmetic reconciliation, and exception resolution.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRegRole('APPROVER')}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                      regRole === 'APPROVER'
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-950 shadow-xs'
+                        : 'bg-white/50 border-white/80 text-slate-700 hover:bg-white/80'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-xs font-black">Executive Approver (Checker)</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Sign-off authority to approve vouchers and commit directly to Destination ERP.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-300/60 text-amber-950 text-[11px] font-medium flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  All staff registrations require review and activation by a System Administrator before login is enabled.
+                </span>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-500 hover:from-emerald-500 hover:to-cyan-400 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 border border-white/60 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <span>Submitting Application...</span>
+                  ) : (
+                    <>
+                      <span>Submit Staff Application</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="text-center pt-2 text-[11px] text-slate-500 font-medium">
+                Already have an active account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('signin');
+                    setError(null);
+                  }}
+                  className="text-indigo-600 font-bold hover:underline cursor-pointer"
+                >
+                  Sign in here
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Footer Security Badge */}
+          <div className="mt-7 pt-4 border-t border-white/40 flex items-center justify-center space-x-2 text-[10px] font-bold text-slate-500">
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+            <span>NIST PBKDF2-HMAC-SHA256 Encrypted · Dual-Control Maker-Checker Governance</span>
           </div>
         </div>
       </div>

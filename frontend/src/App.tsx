@@ -8,6 +8,7 @@ import { LiquidMiddleCards } from './components/LiquidMiddleCards';
 import { InvoiceQueue } from './components/InvoiceQueue';
 import { SplitScreenReview } from './components/SplitScreenReview';
 import { TargetERPViewer } from './components/TargetERPViewer';
+import { AdminStaffPortal } from './components/AdminStaffPortal';
 import { UploadModal } from './components/UploadModal';
 import { api } from './services/api';
 import type { 
@@ -21,12 +22,12 @@ import type {
 
 export function App() {
   // Navigation & User Session State
-  const [currentTab, setCurrentTab] = useState<'queue' | 'escalated' | 'target_erp'>('queue');
+  const [currentTab, setCurrentTab] = useState<'queue' | 'escalated' | 'target_erp' | 'admin'>('queue');
   
   // Load initial session from localStorage or default to null for Login Screen
   const [activeUser, setActiveUser] = useState<UserSession | null>(() => {
     try {
-      const saved = localStorage.getItem('ledgerflow_user_session');
+      const saved = localStorage.getItem('lf_user') || localStorage.getItem('ledgerflow_user_session');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -35,6 +36,7 @@ export function App() {
 
   const handleLogin = (user: UserSession) => {
     try {
+      localStorage.setItem('lf_user', JSON.stringify(user));
       localStorage.setItem('ledgerflow_user_session', JSON.stringify(user));
     } catch {
       // ignore
@@ -44,6 +46,7 @@ export function App() {
 
   const handleUserChange = (user: UserSession) => {
     try {
+      localStorage.setItem('lf_user', JSON.stringify(user));
       localStorage.setItem('ledgerflow_user_session', JSON.stringify(user));
     } catch {
       // ignore
@@ -53,6 +56,7 @@ export function App() {
 
   const handleLogout = () => {
     try {
+      api.logout();
       localStorage.removeItem('ledgerflow_user_session');
     } catch {
       // ignore
@@ -138,7 +142,7 @@ export function App() {
   };
 
   // Switch tabs
-  const handleTabChange = (tab: 'queue' | 'escalated' | 'target_erp') => {
+  const handleTabChange = (tab: 'queue' | 'escalated' | 'target_erp' | 'admin') => {
     setCurrentTab(tab);
     setSelectedInvoiceDetail(null);
     if (tab === 'escalated') {
@@ -322,6 +326,8 @@ export function App() {
             />
           ) : currentTab === 'target_erp' ? (
             <TargetERPViewer onBack={() => handleTabChange('queue')} />
+          ) : currentTab === 'admin' ? (
+            <AdminStaffPortal activeUser={activeUser} onBack={() => handleTabChange('queue')} />
           ) : (
             <>
               {/* TIER 1 & 2: Top Metric Cards (Total, Ingestion Spline, Human Review Rate, Velocity) */}

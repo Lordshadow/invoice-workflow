@@ -10,7 +10,9 @@ import type {
   InvoiceSummary,
   LineItem,
   ProcessInvoiceResult,
+  RegisterStaffRequest,
   SampleInvoiceFile,
+  StaffListResponse,
   UserSession,
 } from '../types/invoice';
 
@@ -30,12 +32,18 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${path}`;
+  const token = localStorage.getItem('lf_token');
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      Accept: 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -263,16 +271,79 @@ export const api = {
 
   // Authenticate Corporate User
   async login(username: string, password: string): Promise<{ token: string; user: UserSession }> {
-    return request<{ token: string; user: UserSession }>('/auth/login', {
+    const res = await request<{ token: string; user: UserSession }>('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
+    if (res.token) {
+      localStorage.setItem('lf_token', res.token);
+      localStorage.setItem('lf_user', JSON.stringify(res.user));
+    }
+    return res;
   },
 
-  // List Available Corporate Personas
-  async listPersonas(): Promise<UserSession[]> {
-    return request<UserSession[]>('/auth/users');
+  // Staff Self-Registration
+  async register(payload: RegisterStaffRequest): Promise<{ success: boolean; user_id: string; message: string }> {
+    return request<{ success: boolean; user_id: string; message: string }>('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Log Out Corporate User
+  logout(): void {
+    localStorage.removeItem('lf_token');
+    localStorage.removeItem('lf_user');
+  },
+
+  // Admin Staff Management Endpoints
+  async listStaff(statusFilter?: string): Promise<StaffListResponse> {
+    const q = statusFilter && statusFilter !== 'ALL' ? `?status_filter=${statusFilter}` : '';
+    return request<StaffListResponse>(`/admin/staff${q}`);
+  },
+
+  async approveStaff(
+    userId: string,
+    approvedRole: string,
+    department?: string,
+    notes?: string
+  ): Promise<UserSession> {
+    return request<UserSession>(`/admin/staff/${userId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved_role: approvedRole, department, notes }),
+    });
+  },
+
+  async rejectStaff(userId: string, reason?: string): Promise<UserSession> {
+    const q = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+    return request<UserSession>(`/admin/staff/${userId}/reject${q}`, {
+      method: 'POST',
+    });
+  },
+
+  async updateStaffRole(userId: string, role: string): Promise<UserSession> {
+    return request<UserSession>(`/admin/staff/${userId}/role`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  async updateStaffStatus(userId: string, status: string, reason?: string): Promise<UserSession> {
+    return request<UserSession>(`/admin/staff/${userId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, reason }),
+    });
+  },
+
+  async deleteStaff(userId: string): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>(`/admin/staff/${userId}`, {
+      method: 'DELETE',
+    });
   },
 
   // Curated Sample Invoices
