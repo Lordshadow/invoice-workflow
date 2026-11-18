@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -7,7 +7,8 @@ import {
   Download, 
   FileText,
   RotateCcw,
-  Loader2
+  Loader2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -25,8 +26,22 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [loadError, setLoadError] = useState<boolean>(false);
   const [imageLoading, setImageLoading] = useState<boolean>(true);
 
+  // Reset state whenever active invoice changes
+  useEffect(() => {
+    setLoadError(false);
+    setImageLoading(true);
+    setZoom(100);
+    setRotation(0);
+  }, [invoiceId]);
+
   const fileUrl = api.getInvoiceFileUrl(invoiceId);
-  const isPdf = fileName?.toLowerCase().endsWith('.pdf') ?? false;
+  const downloadUrl = `${fileUrl}?download=true`;
+
+  const lowerName = fileName?.toLowerCase() || '';
+  const isDocx = lowerName.endsWith('.docx') || lowerName.endsWith('.doc');
+  const isImage = lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png') || lowerName.endsWith('.webp');
+  // Both native PDFs and on-the-fly converted DOCX documents render via the standard PDF iframe viewer
+  const isPdfLike = lowerName.endsWith('.pdf') || isDocx || (!isImage && lowerName.length > 0);
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 25, 250));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 25, 50));
@@ -42,60 +57,80 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       <div className="px-4 py-3 bg-white/70 border-b border-indigo-100/70 flex items-center justify-between text-xs backdrop-blur-md">
         <div className="flex items-center space-x-2 truncate max-w-[200px] sm:max-w-xs">
           <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-            <FileText className="w-3.5 h-3.5" />
+            {isImage ? <ImageIcon className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
           </div>
-          <span className="font-bold text-slate-800 truncate" title={fileName || 'Original Invoice'}>
+          <span className="font-bold text-slate-800 truncate" title={fileName || 'Original Document'}>
             {fileName || 'Original Document'}
           </span>
+          {isDocx && (
+            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+              DOCX Preview
+            </span>
+          )}
         </div>
 
         {/* Canvas Controls */}
         <div className="flex items-center space-x-1 liquid-pill px-2 py-1 rounded-full border border-white/80 bg-white/60">
-          <button
-            onClick={handleZoomOut}
-            title="Zoom Out"
-            className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
+          {!isPdfLike && (
+            <>
+              <button
+                onClick={handleZoomOut}
+                title="Zoom Out"
+                className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+
+              <span className="text-[11px] font-mono font-bold px-1.5 text-slate-700 select-none">
+                {zoom}%
+              </span>
+
+              <button
+                onClick={handleZoomIn}
+                title="Zoom In"
+                className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="w-[1px] h-3 bg-slate-300 mx-1" />
+
+              <button
+                onClick={handleRotate}
+                title="Rotate 90° Clockwise"
+                className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={handleResetZoom}
+                title="Reset View"
+                className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="w-[1px] h-3 bg-slate-300 mx-1" />
+            </>
+          )}
+
+          {/* Explicit Manual Download */}
+          <a
+            href={downloadUrl}
+            download={fileName || 'invoice_document'}
+            title="Download Document File"
+            className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors inline-flex items-center cursor-pointer"
           >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
+            <Download className="w-3.5 h-3.5" />
+          </a>
 
-          <span className="text-[11px] font-mono font-bold px-1.5 text-slate-700 select-none">
-            {zoom}%
-          </span>
-
-          <button
-            onClick={handleZoomIn}
-            title="Zoom In"
-            className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-
-          <div className="w-[1px] h-3 bg-slate-300 mx-1" />
-
-          <button
-            onClick={handleRotate}
-            title="Rotate 90° Clockwise"
-            className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
-          >
-            <RotateCw className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={handleResetZoom}
-            title="Reset View"
-            className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-
-          <div className="w-[1px] h-3 bg-slate-300 mx-1" />
-
+          {/* Open Inline in New Tab */}
           <a
             href={fileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            title="Open Document in New Tab"
+            title="Open Document Preview in New Tab"
             className="p-1 rounded-lg text-slate-600 hover:text-indigo-900 hover:bg-white transition-colors inline-flex items-center cursor-pointer"
           >
             <ExternalLink className="w-3.5 h-3.5" />
@@ -115,19 +150,19 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
               The original file stream could not be loaded in browser canvas.
             </p>
             <a
-              href={fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 rounded-2xl pod-blue text-white text-xs font-bold inline-flex items-center space-x-1.5 shadow-crystal-glow-blue"
+              href={downloadUrl}
+              download={fileName || 'invoice_document'}
+              className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center space-x-1.5 shadow-md active:scale-95 transition-all"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Download File Directly</span>
             </a>
           </div>
-        ) : isPdf ? (
+        ) : isPdfLike ? (
           <iframe
+            key={invoiceId}
             src={`${fileUrl}#toolbar=0&navpanes=0`}
-            title="Invoice Document PDF"
+            title="Invoice Document Preview"
             className="w-full h-full min-h-[550px] rounded-2xl border border-slate-200 shadow-xl bg-white"
             onError={() => setLoadError(true)}
           />
@@ -146,6 +181,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 </div>
               )}
               <img
+                key={invoiceId}
                 src={fileUrl}
                 alt="Invoice Document Preview"
                 onLoad={() => setImageLoading(false)}

@@ -942,3 +942,21 @@ This file records all architectural decisions, file creations, modifications, QA
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 741ms.
   - Live Browser QA subagent actively verifying clean modal layout.
   - Status: PASS.
+
+
+### [2026-11-18 15:23:45 +05:30] QA Audit: Comprehensive Bug & Architecture Gap Inspection for Phase 4 and Phase 5
+
+- **Actor / Mode**: QA Auditor & Senior Backend Developer
+- **Phase / Scope**: Phase 4 (Deterministic Validation & Deduplication) & Phase 5 (Data Platform, Storage & Outbox Engine)
+- **Files Modified / Created**:
+  - `alogs.md` (Modified): Logged comprehensive audit findings and bug enumeration.
+- **What Changed**:
+  - Conducted deep-dive code and architectural audit comparing implemented code (`invoice_validator.py`, `deduplication_service.py`, `invoices.py`, `document.py`, `target_company.py`, `delivery_worker.py`, `session.py`) against `COMPLETE_ENGINEERING_PLAN.md` Phase 4 and Phase 5 specifications.
+  - Identified and verified 13 critical bugs and omissions across Phase 4 (Buyer GSTIN omission, missing GSTIN state code validation against Place of Supply, Indian date month/day inversion in dateutil, unvalidated invoice dates, missing line-item arithmetic verification, missing inter/intra-state tax consistency, tolerance mismatch, missing fuzzy matching in deduplication, invoice number normalization collisions, in-memory table scan during deduplication, un-audited Layer-1 duplicates, and update endpoint deduplication bypass).
+  - Identified and verified 9 critical bugs and omissions across Phase 5 (completely missing `StorageProvider` cloud abstraction layer, missing Alembic migrations and SQLite-only startup pragma, missing relational tables `validation_results` and `approvals`, Target DB NULL supplier GSTIN uniqueness loophole, non-existent background outbox publisher loop, missing `FOR UPDATE SKIP LOCKED`, STP auto-approved invoices bypassing outbox event creation, synchronous coupling and mismatched rollback in approval delivery, and rollback session detachment bug).
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check phase 4 and 5 for any bugs and list them".
+- **QA & Verification Status**:
+  - All 22 bugs and architectural gaps verified with direct file references, line numbers, and live Python code reproduction.
+  - Status: AUDIT COMPLETE.
+

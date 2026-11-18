@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -682,8 +682,17 @@ def get_invoice(invoice_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{invoice_id}/file", summary="Stream Original Invoice Document File")
-def get_invoice_file(invoice_id: str, db: Session = Depends(get_db)):
-    """Streams the original physical PDF or image file for frontend viewer display."""
+def get_invoice_file(
+    invoice_id: str, 
+    download: bool = Query(False, description="Whether to force download attachment"),
+    db: Session = Depends(get_db)
+):
+    """
+    Streams the original physical PDF, Image, or DOCX file for frontend viewer display.
+    - Sets Content-Disposition: inline by default so browsers render the document instead of downloading.
+    - Automatically converts DOCX documents to standard PDF on the fly for native browser preview.
+    - Sets Content-Disposition: attachment only when download=True is explicitly passed.
+    """
     inv = db.get(Invoice, invoice_id)
     if not inv or not inv.document or not inv.document.file_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice file not found.")
@@ -700,10 +709,50 @@ def get_invoice_file(invoice_id: str, db: Session = Depends(get_db)):
         else:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File on disk '{file_path.name}' not found.")
 
+    ext = file_path.suffix.lower()
+    file_name = inv.document.file_name or file_path.name
+
+    # Determine accurate MIME type
+    media_type = inv.document.mime_type
+    if ext == ".pdf":
+        media_type = "application/pdf"
+    elif ext in (".jpg", ".jpeg"):
+        media_type = "image/jpeg"
+    elif ext == ".png":
+        media_type = "image/png"
+    elif ext == ".webp":
+        media_type = "image/webp"
+    elif ext in (".docx", ".doc"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    # If DOCX and not an explicit download, convert to PDF on-the-fly for native iframe preview
+    if ext in (".docx", ".doc") and not download:
+        try:
+            import fitz
+            doc = fitz.open(str(file_path))
+            pdf_bytes = doc.convert_to_pdf()
+            doc.close()
+            pdf_filename = f"{Path(file_name).stem}.pdf"
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'inline; filename="{pdf_filename}"',
+                    "Accept-Ranges": "bytes",
+                    "Cache-Control": "public, max-age=3600",
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to convert DOCX to PDF for preview: {e}")
+
+    disposition = "attachment" if download else "inline"
+
     return FileResponse(
         path=str(file_path),
-        media_type=inv.document.mime_type or "application/octet-stream",
-        filename=inv.document.file_name or file_path.name
+        media_type=media_type or "application/octet-stream",
+        content_disposition_type=disposition,
+        filename=file_name,
+        headers={"Cache-Control": "public, max-age=3600"}
     )
 
 
