@@ -831,3 +831,19 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 609ms.
   - Status: PASS.
+
+### [2026-11-18 14:05:15 +05:30] Fix 4: Optimistic Concurrency Control (OCC 409) Conflict Recovery Banner
+
+- **Actor / Mode**: Senior Frontend Engineer & Distributed Systems Specialist
+- **Phase / Scope**: Split-Screen Review & Concurrency Conflict Recovery UI
+- **Files Modified / Created**:
+  - `frontend/src/components/SplitScreenReview.tsx` (Modified): Added `checkAndSetOccError` handler detecting HTTP 409 conflict responses; rendered an animated liquid glass OCC warning banner with local version indicator (`v{invoice.version}`) and 1-click `Reload Latest Version` action button that fetches the latest database state and restores editability.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Implemented `versionConflict` state and `handleReloadLatest` fetching `api.getInvoiceDetail(invoice.id)`.
+  - Added OCC conflict banner with amber border, glowing icon, and action button.
+- **Why (Rationale & Purpose)**:
+  - Eliminates the deadlock where users encountering version mismatches were stuck without a way to reload the current invoice without losing their workspace context.
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 569ms.
+  - Status: PASS.

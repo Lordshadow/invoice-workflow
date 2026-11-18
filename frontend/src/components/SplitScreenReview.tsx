@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, CheckCircle, AlertTriangle, RotateCw } from 'lucide-react';
 import type { InvoiceDetail, LineItem, UserSession } from '../types/invoice';
 import { DocumentViewer } from './DocumentViewer';
 import { InvoiceEditor } from './InvoiceEditor';
-import { api } from '../services/api';
+import { api, ApiError } from '../services/api';
 
 interface SplitScreenReviewProps {
   invoice: InvoiceDetail;
@@ -22,10 +22,43 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [versionConflict, setVersionConflict] = useState<string | null>(null);
+  const [refreshingVersion, setRefreshingVersion] = useState(false);
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleReloadLatest = async () => {
+    try {
+      setRefreshingVersion(true);
+      const latest = await api.getInvoiceDetail(invoice.id);
+      onInvoiceUpdated(latest);
+      setVersionConflict(null);
+      showToast('success', `Reloaded latest invoice version v${latest.version} successfully.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to reload latest version.';
+      showToast('error', msg);
+    } finally {
+      setRefreshingVersion(false);
+    }
+  };
+
+  const checkAndSetOccError = (err: unknown, defaultMsg: string) => {
+    const isOcc =
+      (err instanceof ApiError && err.status === 409) ||
+      (err instanceof Error &&
+        (err.message.includes('version mismatch') ||
+          err.message.includes('409') ||
+          err.message.toLowerCase().includes('concurrency')));
+
+    const msg = err instanceof Error ? err.message : defaultMsg;
+    if (isOcc) {
+      setVersionConflict(msg);
+    } else {
+      showToast('error', msg);
+    }
   };
 
   const handleSaveCorrections = async (
@@ -33,6 +66,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
   ) => {
     try {
       setSaving(true);
+      setVersionConflict(null);
       const res = await api.updateInvoice(invoice.id, {
         actor: activeUser.username,
         expected_version: invoice.version,
@@ -59,8 +93,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
       onInvoiceUpdated(res);
       showToast('success', 'Invoice corrections saved & validation re-calculated successfully.');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save corrections.';
-      showToast('error', msg);
+      checkAndSetOccError(err, 'Failed to save corrections.');
     } finally {
       setSaving(false);
     }
@@ -69,6 +102,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
   const handleApprove = async (notes?: string) => {
     try {
       setApproving(true);
+      setVersionConflict(null);
       const res = await api.approveInvoice(invoice.id, {
         actor: activeUser.username,
         expected_version: invoice.version,
@@ -77,8 +111,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
       onInvoiceUpdated(res);
       showToast('success', 'Invoice approved and idempotently posted to Target Company ERP Database!');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Approval failed.';
-      showToast('error', msg);
+      checkAndSetOccError(err, 'Approval failed.');
     } finally {
       setApproving(false);
     }
@@ -87,6 +120,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
   const handleReject = async (reason: string) => {
     try {
       setRejecting(true);
+      setVersionConflict(null);
       const res = await api.rejectInvoice(invoice.id, {
         actor: activeUser.username,
         reason,
@@ -95,8 +129,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
       onInvoiceUpdated(res);
       showToast('success', 'Invoice marked as rejected.');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Rejection failed.';
-      showToast('error', msg);
+      checkAndSetOccError(err, 'Rejection failed.');
     } finally {
       setRejecting(false);
     }
@@ -119,6 +152,45 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
             <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
           )}
           <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* Optimistic Concurrency Control (OCC 409) Resolution Banner */}
+      {versionConflict && (
+        <div className="mb-4 p-4 rounded-2xl liquid-modal-glass border border-amber-400/80 bg-amber-500/15 text-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-lg">
+          <div className="flex items-start sm:items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-extrabold text-xs text-amber-950 flex items-center space-x-1.5">
+                <span>Optimistic Concurrency Conflict (Stale Version)</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono font-bold">
+                  Active in Editor: v{invoice.version}
+                </span>
+              </div>
+              <p className="text-xs text-slate-700 mt-0.5 font-medium">
+                {versionConflict}. Another user or automated STP step has updated this record. Reload to reconcile changes without data loss.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+            <button
+              onClick={() => setVersionConflict(null)}
+              className="px-3 py-1.5 rounded-xl liquid-pill text-xs font-bold text-slate-600 hover:text-slate-900 border border-white/80 cursor-pointer"
+            >
+              Dismiss
+            </button>
+            <button
+              onClick={handleReloadLatest}
+              disabled={refreshingVersion}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-black shadow-md flex items-center space-x-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${refreshingVersion ? 'animate-spin' : ''}`} />
+              <span>{refreshingVersion ? 'Reloading...' : 'Reload Latest Version'}</span>
+            </button>
+          </div>
         </div>
       )}
 
