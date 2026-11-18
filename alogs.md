@@ -867,3 +867,20 @@ This file records all architectural decisions, file creations, modifications, QA
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 561ms.
   - Live Browser QA subagent actively verifying sample card rendering, 1-click download, and dropzone population.
   - Status: PASS.
+
+### [2026-11-18 14:09:00 +05:30] Fix 6: JSON Object Error Parsing & Duplicate Invoice Direct Navigation
+
+- **Actor / Mode**: Senior Frontend Engineer & Distributed Systems Specialist
+- **Phase / Scope**: API Error Handling & Duplicate Investigation Navigation
+- **Files Modified / Created**:
+  - `frontend/src/services/api.ts` (Modified): Fixed bug where FastAPI JSON detail objects were converted to string via `String(err.detail)` producing `"[object Object]"`; extracted `detail.message` and preserved full error payload in `ApiError.data`.
+  - `frontend/src/components/UploadModal.tsx` (Modified): Added extraction of `duplicate_of_id` / `invoice_id` on 409 conflict errors, providing an actionable `Inspect Existing Invoice →` button that automatically navigates the reviewer to the duplicate record for audit.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Eliminated `[object Object]` error messages on complex API failures.
+  - Provided direct single-click navigation from duplicate upload failure to the existing record in split-screen review.
+- **Why (Rationale & Purpose)**:
+  - Fulfills robust error handling and duplicate prevention disciplines from `AGENTS.md`.
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 583ms.
+  - Status: PASS.

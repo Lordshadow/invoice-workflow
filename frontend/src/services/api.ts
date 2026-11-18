@@ -231,13 +231,21 @@ export const api = {
 
     if (!response.ok) {
       let detail = `Upload failed with status ${response.status}`;
+      let errData = null;
       try {
-        const err = await response.json();
-        if (err && err.detail) detail = String(err.detail);
+        errData = await response.json();
+        if (errData && errData.detail) {
+          if (typeof errData.detail === 'string') {
+            detail = errData.detail;
+          } else if (typeof errData.detail === 'object' && errData.detail !== null) {
+            const d = errData.detail as { message?: string };
+            detail = d.message || JSON.stringify(errData.detail);
+          }
+        }
       } catch {
         // ignore
       }
-      throw new ApiError(response.status, detail);
+      throw new ApiError(response.status, detail, errData);
     }
 
     return response.json() as Promise<ProcessInvoiceResult>;

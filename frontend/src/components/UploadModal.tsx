@@ -15,7 +15,7 @@ import {
   Sparkles,
   ArrowRight
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, ApiError } from '../services/api';
 import type { ProcessInvoiceResult, SampleInvoiceFile } from '../types/invoice';
 
 interface UploadModalProps {
@@ -62,6 +62,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [uploading, setUploading] = useState<boolean>(false);
   const [result, setResult] = useState<ProcessInvoiceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateInvoiceId, setDuplicateInvoiceId] = useState<string | null>(null);
   const [isChannelDropdownOpen, setIsChannelDropdownOpen] = useState(false);
   const [sampleFiles, setSampleFiles] = useState<SampleInvoiceFile[]>([]);
   const [loadingSample, setLoadingSample] = useState<string | null>(null);
@@ -112,12 +113,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     try {
       setUploading(true);
       setError(null);
+      setDuplicateInvoiceId(null);
       const res = await api.uploadInvoice(file, source, enableStp);
       setResult(res);
       onSuccess(res);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Invoice processing failed.';
       setError(msg);
+      if (err instanceof ApiError && err.data && typeof err.data === 'object') {
+        const d = err.data as Record<string, unknown>;
+        const detail = (d.detail && typeof d.detail === 'object' ? d.detail : d) as Record<string, unknown>;
+        const invId = (detail.invoice_id || detail.duplicate_of_id) as string | undefined;
+        if (invId) {
+          setDuplicateInvoiceId(invId);
+        }
+      }
     } finally {
       setUploading(false);
     }
@@ -127,6 +137,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     try {
       setLoadingSample(sample.filename);
       setError(null);
+      setDuplicateInvoiceId(null);
       const downloadedFile = await api.downloadSampleFile(sample.filename);
       setFile(downloadedFile);
       if (sample.stp_eligible) {
@@ -144,6 +155,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     setFile(null);
     setResult(null);
     setError(null);
+    setDuplicateInvoiceId(null);
     setIsChannelDropdownOpen(false);
     setLoadingSample(null);
     onClose();
@@ -485,11 +497,45 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 </div>
               </div>
 
-              {/* Error Message */}
+              {/* Error Message & Duplicate Resolution Button */}
               {error && (
-                <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-400/40 text-rose-800 text-xs flex items-center space-x-2 font-medium">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
-                  <span>{error}</span>
+                <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-400/40 text-rose-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 font-medium animate-in fade-in duration-150">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
+                    <span>{error}</span>
+                  </div>
+                  {duplicateInvoiceId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetId = duplicateInvoiceId;
+                        resetState();
+                        onSuccess({
+                          invoice_id: targetId,
+                          success: true,
+                          document_id: targetId,
+                          file_name: file?.name || 'Existing Document',
+                          file_hash: '',
+                          status: 'DUPLICATE_INVESTIGATION',
+                          duplicate_type: 'SHA256_EXACT',
+                          duplicate_of_id: targetId,
+                          validation_passed: false,
+                          validation_errors: ['Duplicate document detected'],
+                          grand_total: 0,
+                          currency: 'INR',
+                          is_escalated: true,
+                          escalation_reason: 'Duplicate document detected',
+                          escalation_category: 'DUPLICATE_SUSPECT',
+                          delivered_to_target: false,
+                          message: 'Existing record found in system',
+                        });
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0 self-end sm:self-auto cursor-pointer shadow-xs active:scale-95 flex items-center space-x-1"
+                    >
+                      <span>Inspect Existing Invoice</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               )}
 
