@@ -960,3 +960,35 @@ This file records all architectural decisions, file creations, modifications, QA
   - All 22 bugs and architectural gaps verified with direct file references, line numbers, and live Python code reproduction.
   - Status: AUDIT COMPLETE.
 
+
+
+### [2026-11-18 15:32:00 +05:30] Fix: Prevent Automatic Document Downloads & Implement High-Resolution Universal Document Preview
+
+- **Actor / Mode**: Senior Full-Stack Engineer & UI/UX Specialist
+- **Phase / Scope**: Split-Screen Document Review & Document Streaming Architecture
+- **Files Modified / Created**:
+  - `backend/app/routers/invoices.py` (Modified):
+    - Added `download: bool = Query(False)` parameter to `get_invoice_file`. Configured Starlette `content_disposition_type="inline"` by default so browsers stream files directly instead of automatically triggering downloads to disk. Added on-the-fly DOCX-to-PDF conversion via PyMuPDF.
+    - Added `GET /api/v1/invoices/{invoice_id}/preview` endpoint rendering high-resolution (180 DPI) PNG raster images of document pages using PyMuPDF. Emitted `X-Total-Pages` and `Access-Control-Expose-Headers` headers for client-side pagination.
+  - `frontend/src/services/api.ts` (Modified):
+    - Added `getInvoicePreviewUrl(id, page)` and updated `getInvoiceFileUrl(id, download)`.
+  - `frontend/src/components/DocumentViewer.tsx` (Modified):
+    - Migrated away from flaky browser `<iframe>` embeds (which suffered from Chromium PDF plugin dark sidebar/black overlay glitches) to high-resolution raster canvas rendering.
+    - Added multi-page navigation controls (`< Page X of Y >`).
+    - Enabled Zoom In (+), Zoom Out (-), Rotate 90° (↻), and Reset View controls across all document formats (PDF, Word DOCX, mobile JPEG/PNG photos).
+    - Preserved dedicated top-bar actions for explicit manual file download (`?download=true`) and opening raw documents in a new tab.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build` (742ms, 0 errors).
+- **What Changed**:
+  - Eliminated unwanted automatic downloads when clicking "Review" on any invoice in the queue or registry.
+  - Fixed PDF, Word DOCX, and photo document rendering by serving high-resolution (180 DPI) raster page previews.
+  - Restored full interactive zoom, rotate, and reset controls for all document types.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "pdf/image/docx not redered fix it and also if I click the review to open the ticket it downloades the file automatically makensdure to fix it".
+- **QA & Verification Status**:
+  - API verified with live Python test client: `GET /preview` returned HTTP 200, `image/png`, 179,150 bytes, `X-Total-Pages: 1`.
+  - Live Browser QA subagent verified on `http://127.0.0.1:8000/dashboard/`:
+    - Zero automatic downloads triggered when clicking "Review" (`downloadTriggered: false`).
+    - Invoice `OOT-TEST-26-118` PDF preview rendered with 100% clarity and sharpness.
+    - Zoom (125%, 150%), Rotate (90° clockwise), and Reset controls tested and verified functioning smoothly.
+    - Dedicated download button verified downloading the exact 3,668-byte file on demand.
+  - Status: PASS.

@@ -105,9 +105,14 @@ export const api = {
     return request<InvoiceDetail>(`/invoices/${id}`);
   },
 
-  // Get stream file URL
-  getInvoiceFileUrl(id: string): string {
-    return `${BASE_URL}/invoices/${id}/file`;
+  // Get stream file URL (raw document file)
+  getInvoiceFileUrl(id: string, download: boolean = false): string {
+    return `${BASE_URL}/invoices/${id}/file${download ? '?download=true' : ''}`;
+  },
+
+  // Get high-res rendered raster preview URL (PDF/DOCX/Image rendered server-side)
+  getInvoicePreviewUrl(id: string, page: number = 1): string {
+    return `${BASE_URL}/invoices/${id}/preview?page=${page}`;
   },
 
   // Update & re-validate invoice

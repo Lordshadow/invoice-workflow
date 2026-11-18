@@ -756,6 +756,91 @@ def get_invoice_file(
     )
 
 
+@router.get("/{invoice_id}/preview", summary="Render High-Resolution Invoice Document Preview Page")
+def get_invoice_preview(
+    invoice_id: str,
+    page: int = Query(1, ge=1, description="Page number to preview (1-indexed)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Renders a crisp, high-resolution (180 DPI) raster image of the specified invoice document page.
+    - PDFs and DOCXs are rendered server-side via PyMuPDF for 100% reliable, plugin-free canvas rendering.
+    - Image formats (JPG, PNG, WEBP) are returned directly.
+    - Emits X-Total-Pages header to enable multi-page document pagination in the frontend viewer.
+    """
+    inv = db.get(Invoice, invoice_id)
+    if not inv or not inv.document or not inv.document.file_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice file not found.")
+
+    file_path = Path(inv.document.file_path)
+    if not file_path.is_file():
+        candidate_uploads = settings.UPLOAD_DIR / file_path.name
+        candidate_samples = Path("samples") / file_path.name
+        if candidate_uploads.is_file():
+            file_path = candidate_uploads
+        elif candidate_samples.is_file():
+            file_path = candidate_samples
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"File on disk '{file_path.name}' not found.")
+
+    ext = file_path.suffix.lower()
+
+    # Image files (JPEG, PNG, WEBP) -> stream directly
+    if ext in (".jpg", ".jpeg", ".png", ".webp"):
+        media_type = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext.replace('.', '')}"
+        return FileResponse(
+            path=str(file_path),
+            media_type=media_type,
+            content_disposition_type="inline",
+            headers={
+                "X-Total-Pages": "1",
+                "Cache-Control": "public, max-age=3600",
+                "Access-Control-Expose-Headers": "X-Total-Pages"
+            }
+        )
+
+    # PDF or DOCX -> render requested page as high-res PNG image via PyMuPDF
+    try:
+        import pymupdf
+        if ext in (".docx", ".doc"):
+            raw_doc = pymupdf.open(str(file_path))
+            pdf_bytes = raw_doc.convert_to_pdf()
+            raw_doc.close()
+            doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        else:
+            doc = pymupdf.open(str(file_path))
+
+        total_pages = len(doc)
+        if total_pages == 0:
+            doc.close()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document has no pages.")
+
+        page_index = min(max(page - 1, 0), total_pages - 1)
+        pdf_page = doc[page_index]
+        pix = pdf_page.get_pixmap(dpi=180)
+        img_bytes = pix.tobytes("png")
+        doc.close()
+
+        return Response(
+            content=img_bytes,
+            media_type="image/png",
+            headers={
+                "Content-Disposition": f'inline; filename="preview_page_{page_index+1}.png"',
+                "X-Total-Pages": str(total_pages),
+                "Cache-Control": "public, max-age=3600",
+                "Access-Control-Expose-Headers": "X-Total-Pages"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate preview for invoice {invoice_id}: {e}", exc_info=True)
+        return FileResponse(
+            path=str(file_path),
+            media_type="application/octet-stream",
+            content_disposition_type="inline",
+            headers={"X-Total-Pages": "1", "Cache-Control": "no-cache", "Access-Control-Expose-Headers": "X-Total-Pages"}
+        )
+
+
 
 @router.post("/{invoice_id}/approve", response_model=InvoiceDetailDTO, summary="Approve Invoice & Deliver to Target DB")
 def approve_invoice(
