@@ -94,7 +94,13 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
   // Real-time client-side arithmetic reconciliation (Senior Frontend Developer standard)
   const arithmeticReconciliation = useMemo(() => {
     const computedItemsSubtotal = lineItems.reduce((acc, it) => acc + (Number(it.total_amount) || 0), 0);
-    const taxSum = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0);
+    const computedLineCgst = lineItems.reduce((acc, it) => acc + (Number(it.cgst_amount) || 0), 0);
+    const computedLineSgst = lineItems.reduce((acc, it) => acc + (Number(it.sgst_amount) || 0), 0);
+    const computedLineIgst = lineItems.reduce((acc, it) => acc + (Number(it.igst_amount) || 0), 0);
+    const computedLineTaxes = computedLineCgst + computedLineSgst + computedLineIgst;
+
+    const headerTaxSum = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0);
+    const taxSum = headerTaxSum > 0 ? headerTaxSum : computedLineTaxes;
     const computedGrandTotal = computedItemsSubtotal + taxSum + (Number(roundOff) || 0);
 
     const subtotalVariance = Math.abs(computedItemsSubtotal - (Number(subtotal) || 0));
@@ -106,6 +112,10 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
 
     return {
       computedItemsSubtotal: Math.round(computedItemsSubtotal * 100) / 100,
+      computedLineCgst: Math.round(computedLineCgst * 100) / 100,
+      computedLineSgst: Math.round(computedLineSgst * 100) / 100,
+      computedLineIgst: Math.round(computedLineIgst * 100) / 100,
+      computedLineTaxes: Math.round(computedLineTaxes * 100) / 100,
       taxSum: Math.round(taxSum * 100) / 100,
       computedGrandTotal: Math.round(computedGrandTotal * 100) / 100,
       subtotalVariance: Math.round(subtotalVariance * 100) / 100,
@@ -119,12 +129,30 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     const nextItems = [...lineItems];
     const current = { ...nextItems[index], [field]: value };
 
-    // Auto-calculate line total when qty, unit price, or discount changes
-    if (field === 'quantity' || field === 'unit_price' || field === 'discount') {
+    // Auto-calculate line total and GST breakdown when qty, unit price, discount, or tax rate changes
+    if (field === 'quantity' || field === 'unit_price' || field === 'discount' || field === 'tax_rate') {
       const q = Number(field === 'quantity' ? value : current.quantity) || 0;
       const p = Number(field === 'unit_price' ? value : current.unit_price) || 0;
       const d = Number(field === 'discount' ? value : current.discount) || 0;
-      current.total_amount = Math.max(0, Math.round((q * p - d) * 100) / 100);
+      const rate = Number(field === 'tax_rate' ? value : current.tax_rate) || 0;
+
+      const taxableBase = Math.max(0, Math.round((q * p - d) * 100) / 100);
+      current.total_amount = taxableBase;
+
+      // Indian GST interstate vs intrastate determination
+      const totalTax = Math.round((taxableBase * (rate / 100)) * 100) / 100;
+      const isInterstate = Number(igst) > 0 || (placeOfSupply && supplierGstin && !supplierGstin.startsWith(placeOfSupply.substring(0, 2)));
+
+      if (isInterstate) {
+        current.igst_amount = totalTax;
+        current.cgst_amount = 0;
+        current.sgst_amount = 0;
+      } else {
+        const half = Math.round((totalTax / 2) * 100) / 100;
+        current.cgst_amount = half;
+        current.sgst_amount = Math.round((totalTax - half) * 100) / 100;
+        current.igst_amount = 0;
+      }
     }
 
     nextItems[index] = current;
@@ -153,12 +181,27 @@ export const InvoiceEditor: React.FC<InvoiceEditorProps> = ({
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  // Sync computed subtotal into header subtotal
+  // Sync computed subtotal and computed taxes into header totals
   const handleAutoSyncTotals = () => {
     const newSubtotal = arithmeticReconciliation.computedItemsSubtotal;
     setSubtotal(newSubtotal);
-    const taxSum = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0);
-    setGrandTotal(Math.round((newSubtotal + taxSum + (Number(roundOff) || 0)) * 100) / 100);
+
+    let nextCgst = Number(cgst) || 0;
+    let nextSgst = Number(sgst) || 0;
+    let nextIgst = Number(igst) || 0;
+
+    // If line items have computed taxes, synchronize taxes into header
+    if (arithmeticReconciliation.computedLineTaxes > 0) {
+      nextCgst = arithmeticReconciliation.computedLineCgst;
+      nextSgst = arithmeticReconciliation.computedLineSgst;
+      nextIgst = arithmeticReconciliation.computedLineIgst;
+      setCgst(nextCgst);
+      setSgst(nextSgst);
+      setIgst(nextIgst);
+    }
+
+    const totalTax = nextCgst + nextSgst + nextIgst;
+    setGrandTotal(Math.round((newSubtotal + totalTax + (Number(roundOff) || 0)) * 100) / 100);
   };
 
   // Maker-Checker Governance: Check if current active user is the maker who edited the invoice

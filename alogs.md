@@ -815,3 +815,19 @@ This file records all architectural decisions, file creations, modifications, QA
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 559ms.
   - Live Browser QA subagent actively verifying KPI cards, search bar, and empty search states.
   - Status: PASS.
+
+### [2026-11-18 14:04:15 +05:30] Fix 3: Line-Item GST Tax Split Auto-Recalculation & Header Sync
+
+- **Actor / Mode**: Senior Frontend Engineer & GST Accounting Specialist
+- **Phase / Scope**: Financial Math & Real-Time Client-Side Arithmetic Reconciliation
+- **Files Modified / Created**:
+  - `frontend/src/components/InvoiceEditor.tsx` (Modified): Upgraded `handleLineItemChange` to automatically recalculate taxable base and Indian GST tax components (CGST + SGST for intrastate, IGST for interstate); upgraded `handleAutoSyncTotals` to dynamically sync both line items subtotal and line items tax sum into header fields, eliminating arithmetic variances in 1 click.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - When `quantity`, `unit_price`, `discount`, or `tax_rate` is changed on any line item, the item's `cgst_amount`, `sgst_amount`, or `igst_amount` is automatically recomputed according to GST state rules.
+  - Auto-Sync Header button now synchronizes both the subtotal and the full tax breakdown into the header `cgst`, `sgst`, and `igst` inputs.
+- **Why (Rationale & Purpose)**:
+  - Fulfills Senior Frontend Developer Standard (Rule 7) for real-time arithmetic recalculation and prevents invalid manual tax calculations from propagating to approval workflows.
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 609ms.
+  - Status: PASS.
