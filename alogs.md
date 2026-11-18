@@ -925,3 +925,20 @@ This file records all architectural decisions, file creations, modifications, QA
   - TypeScript compilation: 0 errors. Vite build completed cleanly in 763ms.
   - Live Browser QA subagent actively testing the 5-stage node layout and clicking `Test Live STP Flow`.
   - Status: PASS.
+
+### [2026-11-18 15:07:30 +05:30] Removal: Eliminated Sample Preset Buttons from Ingestion Modal
+
+- **Actor / Mode**: Senior Frontend Engineer & UI/UX Specialist
+- **Phase / Scope**: Ingestion Modal Cleanup & Decluttering
+- **Files Modified / Created**:
+  - `frontend/src/components/UploadModal.tsx` (Modified): Removed the `"Or load a curated test sample:"` section and the 4 preset buttons (`Interstate B2B GST Invoice`, `Printed Store Receipt`, `Handwritten Cash Memo`, `Multi-Page Corporate Invoice`), restoring a clean, minimal dropzone layout with Channel Origin and Governance STP toggle controls. Cleaned up unused sample loading state, handlers, and types.
+  - `frontend/dist/` (Rebuilt): Built production bundles with `tsc -b && vite build`.
+- **What Changed**:
+  - Deleted sample preset grid and associated state handlers from `UploadModal.tsx`.
+  - Ingestion modal now focuses strictly on primary document drag-and-drop / file upload.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "remove these things , these are unwanted" with uploaded screenshot of sample preset buttons.
+- **QA & Verification Status**:
+  - TypeScript compilation: 0 errors. Vite build completed cleanly in 741ms.
+  - Live Browser QA subagent actively verifying clean modal layout.
+  - Status: PASS.
