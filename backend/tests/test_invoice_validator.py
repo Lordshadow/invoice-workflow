@@ -22,7 +22,24 @@ class TestInvoiceValidator:
         assert InvoiceValidator.normalize_date("07/24/2018") == "2018-07-24"
         assert InvoiceValidator.normalize_date("2026-11-17") == "2026-11-17"
         assert InvoiceValidator.normalize_date("14 Nov 2026") == "2026-11-14"
+        # Indian DD/MM/YYYY dayfirst check (05/11/2026 should be Nov 5, not May 11)
+        assert InvoiceValidator.normalize_date("05/11/2026") == "2026-11-05"
+        assert InvoiceValidator.normalize_date("2026.11.15") == "2026-11-15"
         assert InvoiceValidator.normalize_date(None) is None
+
+    def test_missing_or_corrupted_invoice_date(self):
+        """Verifies unparseable/corrupted invoice date is flagged by validator."""
+        # Corrupted date format
+        inv_bad_date = CanonicalInvoice(
+            supplier=SupplierDetails(name="ABC SUPPLIES", gstin="33AABCT1234F1Z9"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="not-a-date", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(cgst=9.0, sgst=9.0),
+            grand_total=118.0,
+        )
+        is_valid, errors = InvoiceValidator.validate(inv_bad_date)
+        assert is_valid is False
+        assert any("valid ISO-8601" in e for e in errors)
 
     def test_indian_gstin_validation(self):
         """Verifies strict 15-character GSTIN enforcement for INR invoices."""
@@ -47,6 +64,126 @@ class TestInvoiceValidator:
         is_valid, errors = InvoiceValidator.validate(invalid_inv)
         assert is_valid is False
         assert any("GSTIN" in e for e in errors)
+
+    def test_buyer_gstin_validation(self):
+        """Verifies strict 15-character GSTIN enforcement for Buyer on INR invoices."""
+        from backend.app.schemas.invoice import BuyerDetails
+
+        # Valid Buyer GSTIN (Inter-state supply with IGST)
+        valid_inv = CanonicalInvoice(
+            supplier=SupplierDetails(name="ABC SUPPLIES", gstin="33AABCT1234F1Z9"),
+            buyer=BuyerDetails(name="XYZ CLIENT", gstin="27BBBBB0000A1Z5"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="2026-11-17", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(igst=18.0),
+            grand_total=118.0,
+        )
+        is_valid, errors = InvoiceValidator.validate(valid_inv)
+        assert is_valid is True
+        assert len(errors) == 0
+
+        # Invalid Buyer GSTIN
+        invalid_inv = CanonicalInvoice(
+            supplier=SupplierDetails(name="ABC SUPPLIES", gstin="33AABCT1234F1Z9"),
+            buyer=BuyerDetails(name="XYZ CLIENT", gstin="BAD_BUYER_GSTIN"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="2026-11-17", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(cgst=9.0, sgst=9.0),
+            grand_total=118.0,
+        )
+        is_valid, errors = InvoiceValidator.validate(invalid_inv)
+        assert is_valid is False
+        assert any("Buyer GSTIN" in e for e in errors)
+
+    def test_gstin_state_code_vs_place_of_supply(self):
+        """Verifies state code prefix matches place of supply."""
+        from backend.app.schemas.invoice import BuyerDetails
+
+        # Matching Supplier state code (33 = Tamil Nadu)
+        valid_inv = CanonicalInvoice(
+            supplier=SupplierDetails(name="TN SUPPLIER", gstin="33AABCT1234F1Z9"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="2026-11-17", place_of_supply="33-Tamil Nadu", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(cgst=9.0, sgst=9.0),
+            grand_total=118.0,
+        )
+        is_valid, errors = InvoiceValidator.validate(valid_inv)
+        assert is_valid is True
+        assert len(errors) == 0
+
+        # Conflicting state code in place of supply (27-Maharashtra vs 33-Tamil Nadu supplier and 33 buyer)
+        invalid_inv = CanonicalInvoice(
+            supplier=SupplierDetails(name="TN SUPPLIER", gstin="33AABCT1234F1Z9"),
+            buyer=BuyerDetails(name="TN BUYER", gstin="33XYZAB1234F1Z5"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="2026-11-17", place_of_supply="27-Maharashtra", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(cgst=9.0, sgst=9.0),
+            grand_total=118.0,
+        )
+        is_valid, errors = InvoiceValidator.validate(invalid_inv)
+        assert is_valid is False
+        assert any("Place of supply state code" in e for e in errors)
+
+    def test_individual_line_item_arithmetic(self):
+        """Verifies individual line item quantity * unit_price - discount == total_amount."""
+        # Line item arithmetic error: Qty 10 * 10 = 100, but line total is 500
+        inv_bad_line = CanonicalInvoice(
+            supplier=SupplierDetails(name="ABC SUPPLIES", gstin="33AABCT1234F1Z9"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="2026-11-17", currency="INR"),
+            line_items=[
+                LineItem(description="Widget A", quantity=10.0, unit_price=10.0, discount=0.0, total_amount=500.0)
+            ],
+            subtotal=500.0,
+            tax=TaxBreakdown(),
+            grand_total=500.0
+        )
+        is_valid, errors = InvoiceValidator.validate(inv_bad_line)
+        assert is_valid is False
+        assert any("arithmetic mismatch" in e and "MATH_ERROR" in e for e in errors)
+
+    def test_intra_and_inter_state_tax_consistency(self):
+        """Verifies CGST=SGST for intra-state and IGST for inter-state."""
+        from backend.app.schemas.invoice import BuyerDetails
+
+        # Intra-state error: Both state 33 (TN), but CGST=18, SGST=0
+        inv_intra_bad = CanonicalInvoice(
+            supplier=SupplierDetails(name="TN SUPPLIER", gstin="33AABCT1234F1Z9"),
+            buyer=BuyerDetails(name="TN BUYER", gstin="33XYZAB1234F1Z5"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="2026-11-17", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(cgst=18.0, sgst=0.0, igst=0.0),
+            grand_total=118.0
+        )
+        is_valid, errors = InvoiceValidator.validate(inv_intra_bad)
+        assert is_valid is False
+        assert any("Intra-state GST mismatch" in e for e in errors)
+
+        # Inter-state error: Supplier 33 (TN), Buyer 27 (MH), but charges CGST/SGST instead of IGST
+        inv_inter_bad = CanonicalInvoice(
+            supplier=SupplierDetails(name="TN SUPPLIER", gstin="33AABCT1234F1Z9"),
+            buyer=BuyerDetails(name="MH BUYER", gstin="27XYZAB1234F1Z5"),
+            metadata=InvoiceMetadata(invoice_number="INV-2", invoice_date="2026-11-17", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(cgst=9.0, sgst=9.0, igst=0.0),
+            grand_total=118.0
+        )
+        is_valid, errors = InvoiceValidator.validate(inv_inter_bad)
+        assert is_valid is False
+        assert any("Inter-state invoice" in e and "IGST" in e for e in errors)
+
+    def test_precision_tolerance_allows_small_variance(self):
+        """Verifies variance <= 1.00 INR is allowed while larger discrepancies are flagged."""
+        # 0.40 INR discrepancy is within ₹1.00 tolerance
+        inv_tolerated = CanonicalInvoice(
+            supplier=SupplierDetails(name="ABC SUPPLIES", gstin="33AABCT1234F1Z9"),
+            metadata=InvoiceMetadata(invoice_number="INV-1", invoice_date="2026-11-17", currency="INR"),
+            subtotal=100.0,
+            tax=TaxBreakdown(cgst=9.0, sgst=9.0),
+            grand_total=118.40  # 40 paise variance
+        )
+        is_valid, errors = InvoiceValidator.validate(inv_tolerated)
+        assert is_valid is True
+        assert len(errors) == 0
 
     def test_international_tax_id_accepted_for_foreign_currencies(self):
         """Verifies foreign tax/VAT numbers are accepted for USD/NAD/EUR invoices."""

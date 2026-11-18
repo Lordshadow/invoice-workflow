@@ -992,3 +992,29 @@ This file records all architectural decisions, file creations, modifications, QA
     - Zoom (125%, 150%), Rotate (90° clockwise), and Reset controls tested and verified functioning smoothly.
     - Dedicated download button verified downloading the exact 3,668-byte file on demand.
   - Status: PASS.
+
+
+### [2026-11-18 16:00:00 +05:30] Fix: Phase 4.1 Deterministic Arithmetic, Indian GSTIN, Date & State Consistency
+
+- **Actor / Mode**: Senior Backend Developer & Financial QA Specialist
+- **Phase / Scope**: Sub-Phase 4.1: Deterministic Arithmetic & Format Validation
+- **Files Modified / Created**:
+  - `backend/app/services/invoice_validator.py` (Modified):
+    - Added Buyer GSTIN validation against `INDIAN_GSTIN_REGEX` and `FOREIGN_TAX_ID_REGEX`.
+    - Added comprehensive 36 Indian state codes lookup table (`INDIAN_STATE_CODES`).
+    - Added GSTIN state code prefix validation against `metadata.place_of_supply`.
+    - Upgraded `normalize_date` with priority Indian date formats (`%d/%m/%Y`, `%d-%m-%Y`) and `dayfirst=True` to eliminate month-day inversion.
+    - Added ISO-8601 YYYY-MM-DD date validation.
+    - Implemented individual line-item arithmetic verification ($\text{Quantity} \times \text{Unit Price} - \text{Discount} \stackrel{?}{=} \text{Line Total}$).
+    - Implemented statutory intra-state vs. inter-state GST tax consistency ($\text{CGST} = \text{SGST}$ for intra-state, $\text{IGST}$ for inter-state).
+    - Adjusted variance tolerance to $\pm ₹1.00$ per specification and prepended standardized `MATH_ERROR` code.
+  - `backend/tests/test_invoice_validator.py` (Modified):
+    - Added unit test cases for Buyer GSTIN validation, state code vs place of supply consistency, DD/MM date normalization, individual line-item arithmetic, and tax consistency.
+- **What Changed**:
+  - Closed 7 critical bugs and compliance gaps across Sub-Phase 4.1.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "fix it one by one and after each fix test for the system to work correctly".
+- **QA & Verification Status**:
+  - Pytest test suites: 22 passed in 19.41s across `test_invoice_validator.py` and `test_bug_fixes.py` (100% pass rate).
+  - Status: PASS.
+
