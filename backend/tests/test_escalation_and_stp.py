@@ -668,3 +668,43 @@ class TestEscalationAndSTPEngine:
         assert de_ok.json()["version"] == 3
         assert de_ok.json()["is_escalated"] is False
 
+    def test_get_invoice_file_stream(self, client, db_session, tmp_path):
+        """Verifies GET /api/v1/invoices/{id}/file streams physical invoice file for split-screen canvas."""
+        test_file = tmp_path / "stream_invoice.pdf"
+        test_file.write_bytes(b"%PDF-1.4 Mock invoice content for canvas viewer")
+
+        doc = Document(
+            source="upload",
+            file_name="stream_invoice.pdf",
+            file_path=str(test_file),
+            file_hash="mock_stream_hash_1",
+            file_size_bytes=len(test_file.read_bytes()),
+            mime_type="application/pdf"
+        )
+        db_session.add(doc)
+        db_session.flush()
+
+        inv = Invoice(
+            document_id=doc.id,
+            status=InvoiceStatus.PENDING_APPROVAL,
+            supplier_name="Canvas Viewer Vendor",
+            invoice_number="INV-CANVAS-1",
+            grand_total=100.0,
+            version=1
+        )
+        db_session.add(inv)
+        db_session.commit()
+
+        # Stream file
+        res = client.get(f"/api/v1/invoices/{inv.id}/file")
+        assert res.status_code == 200
+        assert res.content == b"%PDF-1.4 Mock invoice content for canvas viewer"
+        assert "application/pdf" in res.headers.get("content-type", "")
+
+    def test_dashboard_static_app_mounted(self, client):
+        """Verifies /dashboard/ serves the built Liquid Glass React dashboard."""
+        res = client.get("/dashboard/")
+        assert res.status_code == 200
+        assert "<div id=\"root\">" in res.text
+
+
