@@ -170,6 +170,14 @@ class EscalationStatsDTO(BaseModel):
     delivered_count: int
     stp_rate_percentage: float
     category_breakdown: Dict[str, int] = Field(default_factory=dict)
+    total_gross_value: float = 0.0
+    delivered_gross_value: float = 0.0
+    average_invoice_value: float = 0.0
+    channel_breakdown: Dict[str, int] = Field(default_factory=dict)
+    mime_breakdown: Dict[str, int] = Field(default_factory=dict)
+    avg_confidence_score: float = 1.0
+    zero_conflict_rate: float = 100.0
+    hourly_throughput: List[int] = Field(default_factory=list)
 
 
 class ManualEscalationRequest(BaseModel):

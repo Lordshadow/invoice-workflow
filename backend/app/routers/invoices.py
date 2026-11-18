@@ -4,6 +4,7 @@ Enforces ACID database transactions, maker-checker governance, OCC, and two-tier
 """
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -459,13 +460,54 @@ def get_escalation_stats(db: Session = Depends(get_db)):
     ).all()
     category_breakdown = {str(row[0]): int(row[1]) for row in cat_counts if row[0]}
 
+    total_gross = float(db.scalar(select(func.sum(Invoice.grand_total))) or 0.0)
+    delivered_gross = float(db.scalar(select(func.sum(Invoice.grand_total)).where(Invoice.status == InvoiceStatus.DELIVERED)) or 0.0)
+    avg_gross = round(float(db.scalar(select(func.avg(Invoice.grand_total))) or 0.0), 2)
+    avg_conf = round(float(db.scalar(select(func.avg(Invoice.confidence_score))) or 1.0), 4)
+
+    channel_counts = db.execute(
+        select(Document.source, func.count(Document.id)).group_by(Document.source)
+    ).all()
+    channel_breakdown = {str(row[0]).lower(): int(row[1]) for row in channel_counts if row[0]}
+
+    mime_counts = db.execute(
+        select(Document.mime_type, func.count(Document.id)).group_by(Document.mime_type)
+    ).all()
+    mime_breakdown = {str(row[0]): int(row[1]) for row in mime_counts if row[0]}
+
+    conflict_count = db.scalar(
+        select(func.count(Invoice.id)).where(Invoice.status == InvoiceStatus.DUPLICATE_INVESTIGATION)
+    ) or 0
+    zero_conflict_rate = round(max(0.0, 100.0 - (conflict_count / total_count * 100.0)), 1) if total_count > 0 else 100.0
+
+    now = datetime.now(timezone.utc)
+    hourly_throughput: List[int] = []
+    for i in range(6, -1, -1):
+        window_start = now - timedelta(hours=(i + 1) * 4)
+        window_end = now - timedelta(hours=i * 4)
+        cnt = db.scalar(
+            select(func.count(Invoice.id)).where(
+                Invoice.created_at >= window_start,
+                Invoice.created_at < window_end
+            )
+        ) or 0
+        hourly_throughput.append(cnt)
+
     return EscalationStatsDTO(
         total_invoices=total_count,
         escalated_count=escalated_count,
         clean_count=clean_count,
         delivered_count=delivered_count,
         stp_rate_percentage=stp_rate,
-        category_breakdown=category_breakdown
+        category_breakdown=category_breakdown,
+        total_gross_value=total_gross,
+        delivered_gross_value=delivered_gross,
+        average_invoice_value=avg_gross,
+        channel_breakdown=channel_breakdown,
+        mime_breakdown=mime_breakdown,
+        avg_confidence_score=avg_conf,
+        zero_conflict_rate=zero_conflict_rate,
+        hourly_throughput=hourly_throughput,
     )
 
 

@@ -7,10 +7,61 @@ interface LiquidMiddleCardsProps {
   onFilterClick?: (filter: string) => void;
 }
 
-export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterClick }) => {
+export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onFilterClick }) => {
+  const total = stats?.total_invoices ?? 0;
+  const delivered = stats?.delivered_count ?? 0;
+  const clean = stats?.clean_count ?? 0;
+  const escalated = stats?.escalated_count ?? 0;
+  const totalGross = stats?.total_gross_value ?? 0;
+  const deliveredGross = stats?.delivered_gross_value ?? 0;
+  const avgVal = stats?.average_invoice_value ?? 0;
+  const avgConfidence = stats?.avg_confidence_score ?? 1.0;
+  const stpRate = stats?.stp_rate_percentage ?? 0.0;
+  const escalatedRate = total > 0 ? ((escalated / total) * 100).toFixed(1) : '0.0';
+
+  const mathErrors = stats?.category_breakdown?.['MATH_MISMATCH'] ?? 0;
+  const balancedRate = total > 0 
+    ? (((total - mathErrors) / total) * 100).toFixed(1) 
+    : '100.0';
+
+  // Format Total Gross Value
+  const formatGrossValue = (val: number) => {
+    if (val >= 10000000) {
+      return { num: (val / 10000000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'Crores' };
+    }
+    if (val >= 100000) {
+      return { num: (val / 100000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'Lakhs' };
+    }
+    if (val >= 1000) {
+      return { num: (val / 1000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'Thousand' };
+    }
+    return { num: val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'INR' };
+  };
+
+  const grossFormatted = formatGrossValue(totalGross);
+  const avgFormatted = formatGrossValue(avgVal);
+
+  // Channels count & breakdown
+  const channelBreakdown = stats?.channel_breakdown ?? {};
+  const mimeBreakdown = stats?.mime_breakdown ?? {};
+
+  const pdfCount = mimeBreakdown['application/pdf'] ?? (channelBreakdown['upload'] ?? 0);
+  const photoCount = (mimeBreakdown['image/jpeg'] ?? 0) + (mimeBreakdown['image/png'] ?? 0) + (mimeBreakdown['image/webp'] ?? 0);
+  const whatsappCount = channelBreakdown['whatsapp'] ?? 0;
+  const emailCount = (channelBreakdown['email'] ?? 0) + (mimeBreakdown['b2b_qr'] ?? 0);
+
+  const maxChannel = Math.max(pdfCount, photoCount, whatsappCount, emailCount, 1);
+
+  const getBarHeight = (count: number) => {
+    if (total === 0 || count === 0) return 14;
+    return Math.max(16, Math.round((count / maxChannel) * 100));
+  };
+
+  const confidencePct = Math.round(avgConfidence * 100);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
-      {/* CARD 1: "20,94" (Dark Navy Card - Middle Left from Image) */}
+      {/* CARD 1: Cumulative Gross Value (Dark Navy Card - Middle Left from Image) */}
       <div 
         onClick={() => onFilterClick && onFilterClick('DELIVERED')}
         className="md:col-span-3 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px]"
@@ -22,11 +73,11 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
 
         <div>
           <div className="text-3xl font-extrabold text-white tracking-tight">
-            ₹20,94 <span className="text-xs font-normal text-slate-300">Lakhs</span>
+            ₹{grossFormatted.num} <span className="text-xs font-normal text-slate-300">{grossFormatted.unit}</span>
           </div>
           <div className="flex items-center text-[11px] text-emerald-400 font-bold mt-1">
             <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />
-            <span>0,7% Growth</span>
+            <span>{delivered} Settled (₹{deliveredGross.toLocaleString('en-IN', { maximumFractionDigits: 0 })})</span>
           </div>
         </div>
 
@@ -35,7 +86,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
         </div>
       </div>
 
-      {/* CARD 2: "19,06" & "93,34" with Circular Ring Gauge (Dark Navy Card - Center from Image) */}
+      {/* CARD 2: Extraction Precision & Donut Gauge (Dark Navy Card - Center from Image) */}
       <div 
         onClick={() => onFilterClick && onFilterClick('DELIVERED')}
         className="md:col-span-5 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px]"
@@ -48,17 +99,17 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
         <div className="grid grid-cols-2 gap-4 items-center">
           <div>
             <div className="text-2xl font-extrabold text-white tracking-tight">
-              19,06 <span className="text-xs font-normal text-slate-300">Vouchers</span>
+              {clean.toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-300">Clean</span>
             </div>
             <div className="text-[10px] text-cyan-300 font-bold mt-0.5">
-              10.0% Speedup
+              {stpRate}% STP Rate
             </div>
             <div className="text-2xl font-extrabold text-white tracking-tight mt-2">
-              93,34% <span className="text-xs font-normal text-slate-300">Score</span>
+              {confidencePct}% <span className="text-xs font-normal text-slate-300">Confidence</span>
             </div>
           </div>
 
-          {/* Radial Donut Gauge Matching the Image */}
+          {/* Radial Donut Gauge Driven by Real AI Extraction Confidence */}
           <div className="flex flex-col items-center justify-center">
             <div className="relative w-20 h-20 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
@@ -70,8 +121,8 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
                 <path
-                  className="text-cyan-400"
-                  strokeDasharray="93, 100"
+                  className="text-cyan-400 transition-all duration-700"
+                  strokeDasharray={`${confidencePct}, 100`}
                   strokeLinecap="round"
                   strokeWidth="3.5"
                   stroke="currentColor"
@@ -80,7 +131,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
                 />
               </svg>
               <span className="absolute text-xs font-extrabold text-white font-mono">
-                17%
+                {confidencePct}%
               </span>
             </div>
             <span className="text-[10px] text-slate-300 mt-1">Variance Guard</span>
@@ -104,38 +155,50 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
           {/* Channel 1: PDF */}
           <div className="flex flex-col items-center space-y-1">
             <div className="h-16 w-3.5 bg-slate-300/40 rounded-full overflow-hidden flex flex-col justify-end">
-              <div className="w-full bg-indigo-600 rounded-full h-[75%]" />
+              <div 
+                className="w-full bg-indigo-600 rounded-full transition-all duration-500" 
+                style={{ height: `${getBarHeight(pdfCount)}%` }} 
+              />
             </div>
-            <span className="text-[9px] font-bold text-slate-600">Digital PDF</span>
+            <span className="text-[9px] font-bold text-slate-600">PDF ({pdfCount})</span>
           </div>
 
           {/* Channel 2: Photo */}
           <div className="flex flex-col items-center space-y-1">
             <div className="h-16 w-3.5 bg-slate-300/40 rounded-full overflow-hidden flex flex-col justify-end">
-              <div className="w-full bg-cyan-400 rounded-full h-[45%]" />
+              <div 
+                className="w-full bg-cyan-400 rounded-full transition-all duration-500" 
+                style={{ height: `${getBarHeight(photoCount)}%` }} 
+              />
             </div>
-            <span className="text-[9px] font-bold text-slate-600">Photos</span>
+            <span className="text-[9px] font-bold text-slate-600">Photos ({photoCount})</span>
           </div>
 
           {/* Channel 3: WhatsApp */}
           <div className="flex flex-col items-center space-y-1">
             <div className="h-16 w-3.5 bg-slate-300/40 rounded-full overflow-hidden flex flex-col justify-end">
-              <div className="w-full bg-blue-500 rounded-full h-[60%]" />
+              <div 
+                className="w-full bg-blue-500 rounded-full transition-all duration-500" 
+                style={{ height: `${getBarHeight(whatsappCount)}%` }} 
+              />
             </div>
-            <span className="text-[9px] font-bold text-slate-600">WhatsApp</span>
+            <span className="text-[9px] font-bold text-slate-600">WhatsApp ({whatsappCount})</span>
           </div>
 
-          {/* Channel 4: B2B QR */}
+          {/* Channel 4: Email / QR */}
           <div className="flex flex-col items-center space-y-1">
             <div className="h-16 w-3.5 bg-slate-300/40 rounded-full overflow-hidden flex flex-col justify-end">
-              <div className="w-full bg-emerald-500 rounded-full h-[90%]" />
+              <div 
+                className="w-full bg-emerald-500 rounded-full transition-all duration-500" 
+                style={{ height: `${getBarHeight(emailCount)}%` }} 
+              />
             </div>
-            <span className="text-[9px] font-bold text-slate-600">B2B QR</span>
+            <span className="text-[9px] font-bold text-slate-600">Email/QR ({emailCount})</span>
           </div>
         </div>
       </div>
 
-      {/* ROW 5: Concentric Arc Ring Gauge (Left) & "45,62" (Center) & "41,5%" (Right) */}
+      {/* ROW 5: Concentric Arc Ring Gauge (Left) & Average Voucher (Center) & Audit Exceptions (Right) */}
       <div 
         onClick={() => onFilterClick && onFilterClick('ALL')}
         className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex items-center justify-between min-h-[140px]"
@@ -145,19 +208,37 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
             Reconciliation Health
           </div>
           <div className="text-xl font-extrabold text-slate-800 mt-1">
-            100% Balanced
+            {balancedRate}% Balanced
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5">
-            Tolerance: $\pm ₹1.00$
+            Tolerance: ± ₹1.00
           </div>
         </div>
 
-        {/* Multi-ring concentric arc (Matches Image) */}
+        {/* Multi-ring concentric arc bound to balance rate */}
         <div className="relative w-20 h-20 flex items-center justify-center">
           <svg className="w-full h-full" viewBox="0 0 40 40">
             <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255, 255, 255, 0.7)" strokeWidth="3" />
-            <circle cx="20" cy="20" r="16" fill="none" stroke="#6366f1" strokeWidth="3" strokeDasharray="60 40" />
-            <circle cx="20" cy="20" r="11" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeDasharray="45 25" />
+            <circle 
+              cx="20" 
+              cy="20" 
+              r="16" 
+              fill="none" 
+              stroke="#6366f1" 
+              strokeWidth="3" 
+              strokeDasharray={`${Math.round(parseFloat(balancedRate) * 0.6)} 40`} 
+              strokeLinecap="round"
+            />
+            <circle 
+              cx="20" 
+              cy="20" 
+              r="11" 
+              fill="none" 
+              stroke="#38bdf8" 
+              strokeWidth="2.5" 
+              strokeDasharray={`${Math.round(parseFloat(balancedRate) * 0.45)} 25`} 
+              strokeLinecap="round"
+            />
           </svg>
         </div>
       </div>
@@ -175,9 +256,9 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
 
         <div className="flex items-baseline space-x-2">
           <span className="text-3xl font-extrabold text-slate-800">
-            ₹45,62
+            ₹{avgFormatted.num}
           </span>
-          <span className="text-xs text-slate-500">Thousand</span>
+          <span className="text-xs text-slate-500">{avgFormatted.unit}</span>
         </div>
 
         <div className="flex items-center space-x-2 text-[10px] text-slate-500 font-bold">
@@ -195,19 +276,37 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ onFilterCl
             Audit Exception Rate
           </div>
           <div className="text-3xl font-extrabold text-indigo-900 mt-1">
-            41,5%
+            {escalatedRate}%
           </div>
           <div className="text-[10px] text-amber-700 font-bold mt-0.5">
-            Auto-Escalated for Review
+            {escalated} in Exception Queue
           </div>
         </div>
 
-        {/* Dual Donut Gauge Matching Image */}
+        {/* Dual Donut Gauge Driven by Real Escalation Rate */}
         <div className="relative w-18 h-18 flex items-center justify-center">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
             <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255, 255, 255, 0.7)" strokeWidth="3" />
-            <circle cx="18" cy="18" r="14" fill="none" stroke="#6366f1" strokeWidth="3" strokeDasharray="41.5 58.5" />
-            <circle cx="18" cy="18" r="9" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeDasharray="30 70" />
+            <circle 
+              cx="18" 
+              cy="18" 
+              r="14" 
+              fill="none" 
+              stroke="#6366f1" 
+              strokeWidth="3" 
+              strokeDasharray={`${Math.max(5, Math.round(parseFloat(escalatedRate)))} ${100 - Math.max(5, Math.round(parseFloat(escalatedRate)))}`} 
+              strokeLinecap="round"
+            />
+            <circle 
+              cx="18" 
+              cy="18" 
+              r="9" 
+              fill="none" 
+              stroke="#38bdf8" 
+              strokeWidth="2.5" 
+              strokeDasharray={`${Math.max(3, Math.round(parseFloat(escalatedRate) * 0.7))} ${100 - Math.max(3, Math.round(parseFloat(escalatedRate) * 0.7))}`} 
+              strokeLinecap="round"
+            />
           </svg>
         </div>
       </div>

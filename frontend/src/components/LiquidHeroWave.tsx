@@ -7,8 +7,15 @@ interface LiquidHeroWaveProps {
 }
 
 export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({ stats }) => {
-  const stpRate = stats?.stp_rate_percentage ?? 84.3;
+  const total = stats?.total_invoices ?? 0;
+  const stpRate = stats?.stp_rate_percentage ?? 0.0;
   const delivered = stats?.delivered_count ?? 0;
+  const deliveredGross = stats?.delivered_gross_value ?? 0.0;
+  const avgConfidence = stats?.avg_confidence_score ?? 1.0;
+  const mathErrors = stats?.category_breakdown?.['MATH_MISMATCH'] ?? 0;
+  const balancedRate = total > 0 
+    ? (((total - mathErrors) / total) * 100).toFixed(1) 
+    : '100.0';
 
   return (
     <div className="liquid-card-hero p-6 md:p-8 mb-4 relative">
@@ -113,17 +120,17 @@ export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({ stats }) => {
 
         {/* Floating Side Metrics Badge Card Inside Wave (Matches Image) */}
         <div className="absolute right-4 top-4 hidden md:flex flex-col space-y-1.5 p-3 rounded-2xl bg-white/70 backdrop-blur-xl border border-white/90 shadow-lg text-[11px] max-w-xs">
-          <div className="flex justify-between items-center text-slate-600">
-            <span>OCR Fast-Path Rate:</span>
-            <span className="font-bold text-indigo-900 font-mono">98.4%</span>
+          <div className="flex justify-between items-center text-slate-600 space-x-3">
+            <span>Extraction Confidence:</span>
+            <span className="font-bold text-indigo-900 font-mono">{(avgConfidence * 100).toFixed(1)}%</span>
           </div>
-          <div className="flex justify-between items-center text-slate-600">
+          <div className="flex justify-between items-center text-slate-600 space-x-3">
             <span>Arithmetic Integrity:</span>
-            <span className="font-bold text-emerald-700 font-mono">100% Balanced</span>
+            <span className="font-bold text-emerald-700 font-mono">{balancedRate}%</span>
           </div>
-          <div className="flex justify-between items-center text-slate-600">
-            <span>Two-Tier Deduplication:</span>
-            <span className="font-bold text-blue-800 font-mono">Guaranteed</span>
+          <div className="flex justify-between items-center text-slate-600 space-x-3">
+            <span>Posted Gross Value:</span>
+            <span className="font-bold text-blue-800 font-mono">₹{deliveredGross.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
           </div>
         </div>
       </div>

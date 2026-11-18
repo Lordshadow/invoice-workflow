@@ -123,6 +123,14 @@ export interface EscalationStats {
   delivered_count: number;
   stp_rate_percentage: number;
   category_breakdown: Record<string, number>;
+  total_gross_value: number;
+  delivered_gross_value: number;
+  average_invoice_value: number;
+  channel_breakdown: Record<string, number>;
+  mime_breakdown: Record<string, number>;
+  avg_confidence_score: number;
+  zero_conflict_rate: number;
+  hourly_throughput: number[];
 }
 
 export interface CompanyInvoiceLine {
