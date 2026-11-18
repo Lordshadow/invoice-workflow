@@ -4,18 +4,19 @@ import type { EscalationStats } from '../types/invoice';
 
 interface LiquidHeroWaveProps {
   stats: EscalationStats | null;
+  onFilterClick?: (filter: string) => void;
 }
 
-export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({ stats }) => {
+export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({ stats, onFilterClick }) => {
   const total = stats?.total_invoices ?? 0;
   const stpRate = stats?.stp_rate_percentage ?? 0.0;
   const delivered = stats?.delivered_count ?? 0;
   const deliveredGross = stats?.delivered_gross_value ?? 0.0;
-  const avgConfidence = stats?.avg_confidence_score ?? 1.0;
+  const avgConfidence = total > 0 ? (stats?.avg_confidence_score ?? 0.0) : 0.0;
   const mathErrors = stats?.category_breakdown?.['MATH_MISMATCH'] ?? 0;
   const balancedRate = total > 0 
     ? (((total - mathErrors) / total) * 100).toFixed(1) 
-    : '100.0';
+    : '0.0';
 
   return (
     <div className="liquid-card-hero p-6 md:p-8 mb-4 relative">
@@ -40,21 +41,29 @@ export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({ stats }) => {
           </div>
         </div>
 
-        {/* Right Metric Pills */}
+        {/* Right Metric Buttons (Fully Functional) */}
         <div className="flex items-center space-x-2 text-xs">
-          <div className="px-3 py-1.5 rounded-xl bg-white/60 backdrop-blur-md border border-white/80 text-slate-700 font-semibold flex items-center space-x-1.5">
+          <button 
+            onClick={() => onFilterClick && onFilterClick('DELIVERED')}
+            title="Filter to Straight-Through Processed Vouchers"
+            className="px-3 py-1.5 rounded-xl bg-white/60 hover:bg-white/80 backdrop-blur-md border border-white/80 text-slate-700 font-semibold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
+          >
             <Zap className="w-3.5 h-3.5 text-cyan-600" />
             <span>STP Efficiency: <b className="text-indigo-900">{stpRate}%</b></span>
-          </div>
+          </button>
 
-          <div className="px-3 py-1.5 rounded-xl bg-white/60 backdrop-blur-md border border-white/80 text-slate-700 font-semibold flex items-center space-x-1.5">
+          <button 
+            onClick={() => onFilterClick && onFilterClick('TARGET_ERP')}
+            title="Open Target ERP Ledger View"
+            className="px-3 py-1.5 rounded-xl bg-white/60 hover:bg-white/80 backdrop-blur-md border border-white/80 text-slate-700 font-semibold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
+          >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>Target DB: <b className="text-emerald-700">{delivered} Posted</b></span>
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* Main Sinusoidal Dual Spline Wave Chart (The Iconic Visual from the Image) */}
+      {/* Main Sinusoidal Dual Spline Wave Chart */}
       <div className="relative mt-4 h-48 sm:h-56 w-full">
         <svg className="w-full h-full" viewBox="0 0 800 240" preserveAspectRatio="none">
           <defs>
@@ -87,38 +96,54 @@ export const LiquidHeroWave: React.FC<LiquidHeroWaveProps> = ({ stats }) => {
 
           {/* Secondary Wave (Violet / Indigo) */}
           <path
-            d="M0,160 C120,90 220,200 360,110 C500,40 620,170 800,100 L800,240 L0,240 Z"
+            d={total > 0 
+              ? "M0,160 C120,90 220,200 360,110 C500,40 620,170 800,100 L800,240 L0,240 Z"
+              : "M0,210 C200,206 400,210 600,206 800,210 L800,240 L0,240 Z"
+            }
             fill="url(#heroWaveViolet)"
           />
           <path
-            d="M0,160 C120,90 220,200 360,110 C500,40 620,170 800,100"
+            d={total > 0 
+              ? "M0,160 C120,90 220,200 360,110 C500,40 620,170 800,100"
+              : "M0,210 C200,206 400,210 600,206 800,210"
+            }
             fill="none"
             stroke="#a5b4fc"
-            strokeWidth="3"
+            strokeWidth={total > 0 ? 3 : 1.5}
             strokeLinecap="round"
           />
 
           {/* Primary Wave (Luminous Cyan & Deep Blue) */}
           <path
-            d="M0,130 C140,190 240,60 380,140 C520,210 650,50 800,120 L800,240 L0,240 Z"
+            d={total > 0 
+              ? "M0,130 C140,190 240,60 380,140 C520,210 650,50 800,120 L800,240 L0,240 Z"
+              : "M0,215 C200,212 400,215 600,212 800,215 L800,240 L0,240 Z"
+            }
             fill="url(#heroWaveCyan)"
           />
           <path
-            d="M0,130 C140,190 240,60 380,140 C520,210 650,50 800,120"
+            d={total > 0 
+              ? "M0,130 C140,190 240,60 380,140 C520,210 650,50 800,120"
+              : "M0,215 C200,212 400,215 600,212 800,215"
+            }
             fill="none"
             stroke="#ffffff"
-            strokeWidth="3.5"
+            strokeWidth={total > 0 ? 3.5 : 2}
             strokeLinecap="round"
             filter="url(#waveGlow)"
           />
 
-          {/* Glowing Peak Data Points on Wave */}
-          <circle cx="240" cy="60" r="5" fill="#ffffff" stroke="#0284c7" strokeWidth="2.5" />
-          <circle cx="650" cy="50" r="5" fill="#ffffff" stroke="#0284c7" strokeWidth="2.5" />
-          <circle cx="500" cy="40" r="4.5" fill="#ffffff" stroke="#6366f1" strokeWidth="2.5" />
+          {/* Glowing Peak Data Points shown only when active throughput is running */}
+          {total > 0 && (
+            <>
+              <circle cx="240" cy="60" r="5" fill="#ffffff" stroke="#0284c7" strokeWidth="2.5" />
+              <circle cx="650" cy="50" r="5" fill="#ffffff" stroke="#0284c7" strokeWidth="2.5" />
+              <circle cx="500" cy="40" r="4.5" fill="#ffffff" stroke="#6366f1" strokeWidth="2.5" />
+            </>
+          )}
         </svg>
 
-        {/* Floating Side Metrics Badge Card Inside Wave (Matches Image) */}
+        {/* Floating Side Metrics Badge Card Inside Wave */}
         <div className="absolute right-4 top-4 hidden md:flex flex-col space-y-1.5 p-3 rounded-2xl bg-white/70 backdrop-blur-xl border border-white/90 shadow-lg text-[11px] max-w-xs">
           <div className="flex justify-between items-center text-slate-600 space-x-3">
             <span>Extraction Confidence:</span>

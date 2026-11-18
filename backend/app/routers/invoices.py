@@ -463,7 +463,7 @@ def get_escalation_stats(db: Session = Depends(get_db)):
     total_gross = float(db.scalar(select(func.sum(Invoice.grand_total))) or 0.0)
     delivered_gross = float(db.scalar(select(func.sum(Invoice.grand_total)).where(Invoice.status == InvoiceStatus.DELIVERED)) or 0.0)
     avg_gross = round(float(db.scalar(select(func.avg(Invoice.grand_total))) or 0.0), 2)
-    avg_conf = round(float(db.scalar(select(func.avg(Invoice.confidence_score))) or 1.0), 4)
+    avg_conf = round(float(db.scalar(select(func.avg(Invoice.confidence_score))) or 0.0), 4) if total_count > 0 else 0.0
 
     channel_counts = db.execute(
         select(Document.source, func.count(Document.id)).group_by(Document.source)
@@ -478,7 +478,7 @@ def get_escalation_stats(db: Session = Depends(get_db)):
     conflict_count = db.scalar(
         select(func.count(Invoice.id)).where(Invoice.status == InvoiceStatus.DUPLICATE_INVESTIGATION)
     ) or 0
-    zero_conflict_rate = round(max(0.0, 100.0 - (conflict_count / total_count * 100.0)), 1) if total_count > 0 else 100.0
+    zero_conflict_rate = round(max(0.0, 100.0 - (conflict_count / total_count * 100.0)), 1) if total_count > 0 else 0.0
 
     now = datetime.now(timezone.utc)
     hourly_throughput: List[int] = []

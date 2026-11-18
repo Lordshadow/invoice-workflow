@@ -15,16 +15,16 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
   const totalGross = stats?.total_gross_value ?? 0;
   const deliveredGross = stats?.delivered_gross_value ?? 0;
   const avgVal = stats?.average_invoice_value ?? 0;
-  const avgConfidence = stats?.avg_confidence_score ?? 1.0;
+  const avgConfidence = total > 0 ? (stats?.avg_confidence_score ?? 0.0) : 0.0;
   const stpRate = stats?.stp_rate_percentage ?? 0.0;
   const escalatedRate = total > 0 ? ((escalated / total) * 100).toFixed(1) : '0.0';
 
   const mathErrors = stats?.category_breakdown?.['MATH_MISMATCH'] ?? 0;
   const balancedRate = total > 0 
     ? (((total - mathErrors) / total) * 100).toFixed(1) 
-    : '100.0';
+    : '0.0';
 
-  // Format Total Gross Value
+  // Format Gross Value
   const formatGrossValue = (val: number) => {
     if (val >= 10000000) {
       return { num: (val / 10000000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: 'Crores' };
@@ -53,22 +53,25 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
   const maxChannel = Math.max(pdfCount, photoCount, whatsappCount, emailCount, 1);
 
   const getBarHeight = (count: number) => {
-    if (total === 0 || count === 0) return 14;
-    return Math.max(16, Math.round((count / maxChannel) * 100));
+    if (total === 0 || count === 0) return 0;
+    return Math.max(12, Math.round((count / maxChannel) * 100));
   };
 
   const confidencePct = Math.round(avgConfidence * 100);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
-      {/* CARD 1: Cumulative Gross Value (Dark Navy Card - Middle Left from Image) */}
+      {/* CARD 1: Cumulative Gross Value */}
       <div 
-        onClick={() => onFilterClick && onFilterClick('DELIVERED')}
-        className="md:col-span-3 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px]"
+        onClick={() => onFilterClick && onFilterClick('TARGET_ERP')}
+        title="View Posted Invoices in Destination ERP Ledger"
+        className="md:col-span-3 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-emerald-400/50 transition-all"
       >
         <div className="flex items-center justify-between text-xs text-slate-300">
           <span className="font-bold text-[11px] uppercase tracking-wider">Processed Value</span>
-          <span className="text-slate-400 font-mono">•••</span>
+          <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/20 px-2 py-0.5 rounded-full">
+            ERP Egress
+          </span>
         </div>
 
         <div>
@@ -86,14 +89,17 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
         </div>
       </div>
 
-      {/* CARD 2: Extraction Precision & Donut Gauge (Dark Navy Card - Center from Image) */}
+      {/* CARD 2: Extraction Precision & Donut Gauge */}
       <div 
         onClick={() => onFilterClick && onFilterClick('DELIVERED')}
-        className="md:col-span-5 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px]"
+        title="Filter Clean Vouchers"
+        className="md:col-span-5 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-cyan-400/50 transition-all"
       >
         <div className="flex items-center justify-between text-xs text-slate-300">
           <span className="font-bold text-[11px] uppercase tracking-wider">Extraction & Precision</span>
-          <span className="text-slate-400 font-mono">•••</span>
+          <span className="text-[10px] text-cyan-300 font-semibold bg-cyan-500/20 px-2 py-0.5 rounded-full">
+            AI Engine
+          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-4 items-center">
@@ -139,16 +145,19 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
         </div>
       </div>
 
-      {/* CARD 3: Vertical Multi-Channel Intake Bars (Frosted Glass - Right from Image) */}
+      {/* CARD 3: Vertical Multi-Channel Intake Bars */}
       <div 
         onClick={() => onFilterClick && onFilterClick('ALL')}
-        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px]"
+        title="View Ingestion Sources"
+        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[150px] hover:border-indigo-300/60 transition-all"
       >
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             Intake Channels
           </span>
-          <span className="text-slate-400 text-xs font-mono">•••</span>
+          <span className="text-[10px] font-semibold text-slate-500 bg-white/70 px-2 py-0.5 rounded-full">
+            {total} Total
+          </span>
         </div>
 
         <div className="flex items-end justify-between pt-2">
@@ -198,10 +207,11 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
         </div>
       </div>
 
-      {/* ROW 5: Concentric Arc Ring Gauge (Left) & Average Voucher (Center) & Audit Exceptions (Right) */}
+      {/* ROW 5: Concentric Arc Ring Gauge & Average Voucher & Audit Exceptions */}
       <div 
         onClick={() => onFilterClick && onFilterClick('ALL')}
-        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex items-center justify-between min-h-[140px]"
+        title="Arithmetic Reconciliation Integrity"
+        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex items-center justify-between min-h-[140px] hover:border-indigo-300/60 transition-all"
       >
         <div>
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -226,7 +236,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
               fill="none" 
               stroke="#6366f1" 
               strokeWidth="3" 
-              strokeDasharray={`${Math.round(parseFloat(balancedRate) * 0.6)} 40`} 
+              strokeDasharray={`${total > 0 ? Math.round(parseFloat(balancedRate) * 0.6) : 0} 40`} 
               strokeLinecap="round"
             />
             <circle 
@@ -236,7 +246,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
               fill="none" 
               stroke="#38bdf8" 
               strokeWidth="2.5" 
-              strokeDasharray={`${Math.round(parseFloat(balancedRate) * 0.45)} 25`} 
+              strokeDasharray={`${total > 0 ? Math.round(parseFloat(balancedRate) * 0.45) : 0} 25`} 
               strokeLinecap="round"
             />
           </svg>
@@ -245,13 +255,16 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
 
       <div 
         onClick={() => onFilterClick && onFilterClick('ALL')}
-        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px]"
+        title="Average Voucher Value Across Invoices"
+        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px] hover:border-indigo-300/60 transition-all"
       >
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             Average Voucher Value
           </span>
-          <span className="text-slate-400 text-xs font-mono">•••</span>
+          <span className="text-[10px] text-indigo-700 bg-white/70 px-2 py-0.5 rounded-full font-bold">
+            GST Eligible
+          </span>
         </div>
 
         <div className="flex items-baseline space-x-2">
@@ -262,14 +275,14 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
         </div>
 
         <div className="flex items-center space-x-2 text-[10px] text-slate-500 font-bold">
-          <span className="px-2 py-0.5 rounded-full bg-white/70 text-indigo-700">GST Eligible</span>
-          <span>Indian B2B Input Credit</span>
+          <span>Indian B2B Input Tax Credit</span>
         </div>
       </div>
 
       <div 
         onClick={() => onFilterClick && onFilterClick('ESCALATED')}
-        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex items-center justify-between min-h-[140px]"
+        title="Open Exception Invoices Requiring Human Review"
+        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex items-center justify-between min-h-[140px] hover:border-amber-400/50 transition-all"
       >
         <div>
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -294,7 +307,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
               fill="none" 
               stroke="#6366f1" 
               strokeWidth="3" 
-              strokeDasharray={`${Math.max(5, Math.round(parseFloat(escalatedRate)))} ${100 - Math.max(5, Math.round(parseFloat(escalatedRate)))}`} 
+              strokeDasharray={`${total > 0 ? Math.max(5, Math.round(parseFloat(escalatedRate))) : 0} ${total > 0 ? (100 - Math.max(5, Math.round(parseFloat(escalatedRate)))) : 100}`} 
               strokeLinecap="round"
             />
             <circle 
@@ -304,7 +317,7 @@ export const LiquidMiddleCards: React.FC<LiquidMiddleCardsProps> = ({ stats, onF
               fill="none" 
               stroke="#38bdf8" 
               strokeWidth="2.5" 
-              strokeDasharray={`${Math.max(3, Math.round(parseFloat(escalatedRate) * 0.7))} ${100 - Math.max(3, Math.round(parseFloat(escalatedRate) * 0.7))}`} 
+              strokeDasharray={`${total > 0 ? Math.max(3, Math.round(parseFloat(escalatedRate) * 0.7)) : 0} ${total > 0 ? (100 - Math.max(3, Math.round(parseFloat(escalatedRate) * 0.7))) : 100}`} 
               strokeLinecap="round"
             />
           </svg>

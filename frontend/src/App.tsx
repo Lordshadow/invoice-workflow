@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { LiquidBackground } from './components/LiquidBackground';
-import { LiquidDocks } from './components/LiquidDocks';
 import { LiquidTopCards } from './components/LiquidTopCards';
 import { LiquidHeroWave } from './components/LiquidHeroWave';
 import { LiquidMiddleCards } from './components/LiquidMiddleCards';
@@ -111,6 +110,8 @@ export function App() {
     if (filter === 'ESCALATED') {
       setCurrentTab('escalated');
       setSelectedFilter('ESCALATED');
+    } else if (filter === 'TARGET_ERP') {
+      setCurrentTab('target_erp');
     } else {
       setCurrentTab('queue');
       setSelectedFilter(filter);
@@ -128,21 +129,11 @@ export function App() {
 
   return (
     <div className="min-h-screen relative flex flex-col selection:bg-indigo-600 selection:text-white">
-      {/* 3D Iridescent Floating Spheres & Gradient Background (Matches Uploaded Image) */}
+      {/* 3D Iridescent Floating Spheres & Gradient Background */}
       <LiquidBackground />
 
-      {/* Floating Vertical Glass Docks (Left and Right Edges from Image) */}
-      <LiquidDocks
-        currentTab={currentTab}
-        onTabChange={handleTabChange}
-        onOpenUpload={() => setIsUploadOpen(true)}
-        activeUser={activeUser}
-        onUserChange={setActiveUser}
-        escalatedCount={stats?.escalated_count ?? 0}
-      />
-
       <div className="relative z-10 flex-1 flex flex-col">
-        {/* Top Navbar Header */}
+        {/* Top Navbar Header with Complete Functional Navigation */}
         <Navbar
           currentTab={currentTab}
           onTabChange={handleTabChange}
@@ -166,13 +157,13 @@ export function App() {
             <TargetERPViewer />
           ) : (
             <>
-              {/* TIER 1 & 2: Top Cards ("1929", Ingestion Spline, "15,7%" Dark Card, Velocity) */}
+              {/* TIER 1 & 2: Top Metric Cards (Total, Ingestion Spline, Human Review Rate, Velocity) */}
               <LiquidTopCards stats={stats} onFilterClick={handleFilterClick} />
 
-              {/* TIER 3: Luminous Wave Aura Hero Banner (Iconic Wide Center Card from Image) */}
-              <LiquidHeroWave stats={stats} />
+              {/* TIER 3: Luminous Waveform Flow Monitor */}
+              <LiquidHeroWave stats={stats} onFilterClick={handleFilterClick} />
 
-              {/* TIER 4 & 5: Middle Row ("20,94" Value, "19,06" & "93,34" Radial Ring, Intake Bars, Arc Ring Gauge, "45,62", "41,5%") */}
+              {/* TIER 4 & 5: Middle Row (Gross Value, Precision Donut, Intake Channels, Balance, Avg Value, Exceptions) */}
               <LiquidMiddleCards stats={stats} onFilterClick={handleFilterClick} />
 
               {/* TIER 6: Interactive Voucher Registry Table with Search & Status Filters */}

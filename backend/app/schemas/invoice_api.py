@@ -175,8 +175,8 @@ class EscalationStatsDTO(BaseModel):
     average_invoice_value: float = 0.0
     channel_breakdown: Dict[str, int] = Field(default_factory=dict)
     mime_breakdown: Dict[str, int] = Field(default_factory=dict)
-    avg_confidence_score: float = 1.0
-    zero_conflict_rate: float = 100.0
+    avg_confidence_score: float = 0.0
+    zero_conflict_rate: float = 0.0
     hourly_throughput: List[int] = Field(default_factory=list)
 
 

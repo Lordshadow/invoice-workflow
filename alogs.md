@@ -681,5 +681,30 @@ This file records all architectural decisions, file creations, modifications, QA
   - Status: PASS.
 
 
+### [2026-11-18 11:10:00 +05:30] Elimination of Unnecessary Decorative Docks, Strict Metric Zero-Calibration & Functional Wiring
+
+- **Actor / Mode**: Senior Full-Stack Engineer & UI/UX Specialist
+- **Phase / Scope**: UI Streamlining, Functional Optimization & Clean Zero-State Calibration
+- **Files Modified / Created**:
+  - `frontend/src/App.tsx` (Modified): Removed floating side docks (`LiquidDocks`) containing decorative placeholder icons (flower, heart, box, play, etc.). Connected `LiquidHeroWave` and all cards to tab routing (Registry, Human Review, Target ERP Ledger).
+  - `backend/app/schemas/invoice_api.py` (Modified): Set default `avg_confidence_score = 0.0` and `zero_conflict_rate = 0.0` when zero invoices exist in database.
+  - `backend/app/routers/invoices.py` (Modified): Updated `get_escalation_stats` to return `0.0` for average confidence and conflict velocity when database contains 0 records, avoiding misleading 100% metrics in fresh environments.
+  - `frontend/src/components/LiquidHeroWave.tsx` (Modified): Calibrated all telemetry metrics (`Extraction Confidence: 0.0%`, `Arithmetic Integrity: 0.0%`, `STP Efficiency: 0%`, `Target DB: 0 Posted`, `Posted Gross Value: ₹0`). Replaced active undulating waveform with a resting flat baseline and removed floating peak dots when idle. Made metric pills interactive buttons for filtering.
+  - `frontend/src/components/LiquidTopCards.tsx` (Modified): Removed decorative non-functional `•••` dots. Calibrated velocity, review rates, and activity bars to strictly 0% when empty. Made all cards functional navigation buttons.
+  - `frontend/src/components/LiquidMiddleCards.tsx` (Modified): Removed decorative non-functional `•••` dots. Calibrated confidence radial donut gauge, concentric arc rings, and channel intake bars to strictly 0% when idle. Added functional routing to Target ERP Ledger, clean invoices, and exception queue.
+  - `frontend/dist/` (Rebuilt): Generated updated production client bundle (`tsc -b && vite build` in 621ms).
+- **What Changed**:
+  - Removed all non-functional decorative buttons and floating sidebars, leaving only functional enterprise navigation and actions in the top navbar and cards.
+  - Strictly calibrated all meters, gauges, donut rings, and waveforms to `0` / `0.0%` in empty state.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "remove all unnessay buttons from the ui and make the ui functionals and also set all the meters to 0,and how this board in the image works and why do you kept it".
+- **QA & Verification Status**:
+  - Frontend compiled cleanly with zero TypeScript errors (`tsc -b && vite build`).
+  - Browser agent verified live rendering at `http://127.0.0.1:8000/dashboard/`.
+  - Screenshot verified: `final_step_33.png`.
+  - Status: PASS.
+
+
+
 
 
