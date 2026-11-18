@@ -1182,3 +1182,23 @@ This file records all architectural decisions, file creations, modifications, QA
   - Live backend seeded with 2 active vouchers (`DELIVERED` and `PENDING_APPROVAL`).
   - Status: PASS.
 
+
+
+### [2026-11-18 20:10:00 +05:30] Fix: Test Isolation & SQLite Lock Mitigation for Background Outbox Publisher
+
+- **Actor / Mode**: Senior Backend Developer & QA Auditor
+- **Phase / Scope**: Phase 5 — Outbox Background Publisher & Concurrency Hardening
+- **Files Modified / Created**:
+  - `backend/app/main.py` (Modified):
+    - Detected test execution environments via `is_testing = "pytest" in sys.modules or not getattr(settings, "ENABLE_OUTBOX_WORKER", True)`.
+    - Prevented starting the background polling loop (`DeliveryWorker.run_outbox_publisher_loop`) during pytest execution, eliminating database lock contention between background queries and test fixtures.
+  - `backend/tests/conftest.py` (Modified):
+    - Added `engine.dispose()` and `target_engine.dispose()` at the start of the `clean_test_databases` autouse fixture to close pooled SQLite connections before DML table cleanups.
+  - `alogs.md` (Modified): Appended changelog entry.
+- **What Changed**:
+  - Eliminated `sqlite3.OperationalError: database is locked` during concurrent test execution by ensuring the background outbox worker only runs in live application mode and disposing pooled connections before test teardown.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "check phase 4 and 5 for any bugs and list them... reason and optimal fixes which will not bring any new bugs... fix it one by one and after each fix test for the system to work correctly... check for the bug".
+- **QA & Verification Status**:
+  - Full automated pytest suite executed: **102 passed, 0 failed, 1 warning in 231.11s (3m 51s)** across all 10 test suites (`test_auth.py`, `test_bug_fixes.py`, `test_database_and_lifecycle.py`, `test_document_processor.py`, `test_escalation_and_stp.py`, `test_extraction.py`, `test_groq_extractor.py`, `test_invoice_validator.py`, `test_real_sample_data.py`, `test_storage.py`).
+  - Status: PASS.

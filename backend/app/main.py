@@ -36,7 +36,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up application lifecycle...")
     init_db()
     outbox_task = None
-    if getattr(settings, "ENABLE_OUTBOX_WORKER", True):
+    is_testing = "pytest" in sys.modules or not getattr(settings, "ENABLE_OUTBOX_WORKER", True)
+    if not is_testing:
         from backend.app.services.delivery_worker import DeliveryWorker
         outbox_task = asyncio.create_task(DeliveryWorker.run_outbox_publisher_loop(interval_seconds=3.0))
         logger.info("Outbox publisher background worker registered and started.")

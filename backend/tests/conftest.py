@@ -11,7 +11,13 @@ from PIL import Image, ImageDraw
 
 from backend.app.main import app
 from backend.app.db.base import Base
-from backend.app.db.session import SessionLocal, TargetSessionLocal, init_db
+from backend.app.db.session import (
+    SessionLocal,
+    TargetSessionLocal,
+    init_db,
+    engine,
+    target_engine,
+)
 from backend.app.models.target_company import TargetBase
 
 
@@ -26,6 +32,8 @@ def setup_test_databases():
 @pytest.fixture(autouse=True)
 def clean_test_databases():
     """Cleans all test tables before each test for total test isolation."""
+    engine.dispose()
+    target_engine.dispose()
     db = SessionLocal()
     target_db = TargetSessionLocal()
     try:
