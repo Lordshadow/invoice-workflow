@@ -23,6 +23,7 @@ tokens/
 .env
 .env.*
 !.env.example
+!.env.docker.example
 *.key
 *.pem
 *key*.txt

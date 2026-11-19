@@ -1,0 +1,173 @@
+# ==============================================================================
+# LedgerFlow Enterprise - Multi-Container Production Orchestration
+# Run the entire autonomous invoice pipeline locally or on-premise with:
+#   docker compose up -d --build
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Primary Pipeline Database (PostgreSQL 16)
+  # Stores documents, invoices, line items, audit logs, and users
+  # ----------------------------------------------------------------------------
+  pipeline-db:
+    image: postgres:16-alpine
+    container_name: ledgerflow-pipeline-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pipeline_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ledgerflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledgerflow_secret}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pipeline_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ledgerflow} -d ${POSTGRES_DB:-pipeline_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ledgerflow-network
+
+  # ----------------------------------------------------------------------------
+  # 2. Target Company / External ERP Destination Database (PostgreSQL 16)
+  # Simulates corporate destination ERP for straight-through and maker-checker egress
+  # ----------------------------------------------------------------------------
+  target-erp-db:
+    image: postgres:16-alpine
+    container_name: ledgerflow-target-erp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${TARGET_POSTGRES_DB:-company_erp_db}
+      POSTGRES_USER: ${TARGET_POSTGRES_USER:-target_admin}
+      POSTGRES_PASSWORD: ${TARGET_POSTGRES_PASSWORD:-target_secret}
+    ports:
+      - "${TARGET_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - target_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TARGET_POSTGRES_USER:-target_admin} -d ${TARGET_POSTGRES_DB:-company_erp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ledgerflow-network
+
+  # ----------------------------------------------------------------------------
+  # 3. Redis In-Memory Cache & Message Broker
+  # Fast queueing, event brokering, and rate-limiting
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: ledgerflow-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ledgerflow-network
+
+  # ----------------------------------------------------------------------------
+  # 4. Backend Processing API & AI Worker (FastAPI + Python 3.12)
+  # Preprocessing, QR Decoding, PaddleOCR, Groq/Gemini Extraction, 2FA OTP, Delivery
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: ledgerflow-backend
+    restart: unless-stopped
+    environment:
+      # Database Connections
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ledgerflow}:${POSTGRES_PASSWORD:-ledgerflow_secret}@pipeline-db:5432/${POSTGRES_DB:-pipeline_db}
+      TARGET_DATABASE_URL: postgresql://${TARGET_POSTGRES_USER:-target_admin}:${TARGET_POSTGRES_PASSWORD:-target_secret}@target-erp-db:5432/${TARGET_POSTGRES_DB:-company_erp_db}
+      
+      # AI & Extraction Service Credentials
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL_NAME: ${GROQ_MODEL_NAME:-qwen/qwen3.8-27b}
+      GEMINI_MODEL_NAME: ${GEMINI_MODEL_NAME:-gemini-3.7-flash}
+      
+      # Straight-Through Processing (STP) Defaults
+      STP_DEFAULT_ENABLED: ${STP_DEFAULT_ENABLED:-true}
+      STP_MIN_CONFIDENCE_THRESHOLD: ${STP_MIN_CONFIDENCE_THRESHOLD:-0.85}
+      STP_MAX_AMOUNT_LIMIT: ${STP_MAX_AMOUNT_LIMIT:-100000.0}
+
+      # Email Ingestion & 2FA SMTP Outbound
+      ENABLE_EMAIL_POLLER: ${ENABLE_EMAIL_POLLER:-true}
+      IMAP_HOST: ${IMAP_HOST:-imap.gmail.com}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
+      IMAP_USE_SSL: "true"
+
+      ENABLE_2FA: ${ENABLE_2FA:-true}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: "true"
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-LedgerFlow Security}
+
+      ENABLE_OUTBOX_WORKER: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_data:/app/data
+    depends_on:
+      pipeline-db:
+        condition: service_healthy
+      target-erp-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ledgerflow-network
+
+  # ----------------------------------------------------------------------------
+  # 5. Frontend Dashboard & Reverse Proxy (NGINX + React 18 + TS)
+  # Responsive Document Review, Native PDF Engine, Governance Portal
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: ledgerflow-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ledgerflow-network
+
+# ------------------------------------------------------------------------------
+# Persistent Volume Declarations
+# ------------------------------------------------------------------------------
+volumes:
+  pipeline_pgdata:
+    driver: local
+  target_pgdata:
+    driver: local
+  redis_data:
+    driver: local
+  backend_uploads:
+    driver: local
+  backend_data:
+    driver: local
+
+# ------------------------------------------------------------------------------
+# Isolated Bridge Network
+# ------------------------------------------------------------------------------
+networks:
+  ledgerflow-network:
+    driver: bridge
