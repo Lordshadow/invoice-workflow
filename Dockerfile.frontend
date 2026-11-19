@@ -1,0 +1,42 @@
+# ==============================================================================
+# LedgerFlow Enterprise - Multi-Stage Production Frontend Dockerfile
+# Stage 1: Build Vite / React 18 / TypeScript SPA
+# Stage 2: Serve optimized static assets via high-performance NGINX Alpine
+# ==============================================================================
+
+# --- Stage 1: Builder ---
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies first for Docker layer caching
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+# Copy frontend source files
+COPY frontend/ ./
+
+# Build production bundle with TypeScript compiler and Vite
+RUN npm run build
+
+# --- Stage 2: Production NGINX ---
+FROM nginx:1.27-alpine AS production
+
+# Remove default nginx boilerplate
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy built artifacts from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy custom reverse proxy & SPA configuration template
+COPY docker/nginx.conf /etc/nginx/templates/default.conf.template
+
+# Default backend host for Docker Compose (can be overridden in cloud via env var)
+ENV BACKEND_HOST=backend:8000
+
+EXPOSE 80
+
+# Healthcheck verifying NGINX availability
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost/ || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

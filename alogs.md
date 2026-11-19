@@ -1625,3 +1625,22 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Git push confirmed: Branch `main` successfully tracking `origin/main` (HTTP 200 / git protocol success).
   - Status: PASS.
+
+
+### [2026-11-19 14:35:35 +05:30] Root Dockerfile Alignment for Google Cloud Build
+
+- **Actor / Mode**: Senior Cloud Infrastructure Engineer
+- **Phase / Scope**: Cloud Run CI/CD Pipeline Build Configuration
+- **Files Modified / Created**:
+  - `Dockerfile` (Created): Root-level multi-stage backend Dockerfile for Cloud Build automated context detection.
+  - `Dockerfile.frontend` (Created): Root-level multi-stage frontend Dockerfile for Cloud Build automated context detection.
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Mirrored backend and frontend Dockerfiles to repository root level.
+  - Maintained repository root `/` as build context for both containers so multi-directory assets (`backend/`, `frontend/`, `samples/`, `docker/nginx.conf`) resolve seamlessly in Cloud Build.
+- **Why (Rationale & Purpose)**:
+  - Fulfills Cloud Build GitHub integration requirements where the Dockerfile directory serves as the build context.
+- **QA & Verification Status**:
+  - Dockerfiles verified.
+  - Committed and pushed to GitHub `main`.
+  - Status: PASS.
