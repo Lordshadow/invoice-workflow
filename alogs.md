@@ -1608,3 +1608,20 @@ This file records all architectural decisions, file creations, modifications, QA
   - Archive verified: 119 files, 1.28 MB total size.
   - Git status clean.
   - Status: PASS.
+
+
+### [2026-11-19 14:19:00 +05:30] GitHub Remote Initialization & Source Code Push
+
+- **Actor / Mode**: Senior Cloud Infrastructure Engineer
+- **Phase / Scope**: Cloud CI/CD Automation (GitHub & Google Cloud Build Integration)
+- **Files Modified / Created**:
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Configured git remote `origin` pointing to `https://github.com/Lordshadow/invoice-workflow.git`.
+  - Renamed primary branch to `main`.
+  - Pushed all commits and production container manifests to GitHub with upstream tracking (`git push -u origin main`).
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "hey , lets push it in gitgub and connect the repo to the cloud" and adheres to Operational Rule 1 (pushing only upon explicit user authorization).
+- **QA & Verification Status**:
+  - Git push confirmed: Branch `main` successfully tracking `origin/main` (HTTP 200 / git protocol success).
+  - Status: PASS.
