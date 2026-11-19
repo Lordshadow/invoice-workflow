@@ -1644,3 +1644,19 @@ This file records all architectural decisions, file creations, modifications, QA
   - Dockerfiles verified.
   - Committed and pushed to GitHub `main`.
   - Status: PASS.
+
+### [2026-11-19 15:33:24 +0530] Add Cloud Build image pipeline
+
+- **Actor / Mode**: AI Assistant / Developer
+- **Phase / Scope**: Phase 8: Multi-Cloud Deployment & Cloud Build configuration
+- **Files Modified / Created**:
+  - `cloudbuild.yaml` (Created)
+  - `alogs.md` (Modified)
+- **What Changed**:
+  - Added Cloud Build steps that build the backend and frontend containers from the repository root using `docker/Dockerfile.backend` and `docker/Dockerfile.frontend`.
+  - Configured Artifact Registry image names from the project ID and substitutions for region (`asia-south1`) and repository (`ledgerflow-repo`); Cloud Build publishes both images with `$SHORT_SHA` tags.
+  - Set Cloud Logging-only build logs and a 30-minute timeout.
+- **Why (Rationale & Purpose)**:
+  - Automates the existing documented manual build-and-push workflow for Cloud Build triggers while keeping per-environment region and repository overridable.
+- **QA & Verification Status**:
+  - PASS: Parsed `cloudbuild.yaml` with Python PyYAML and confirmed both referenced Dockerfiles exist. `git diff --check` passed. Docker image builds were not run locally; Docker Engine was unavailable in the earlier environment check. No application source or invoice-processing behavior changed.
