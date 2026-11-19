@@ -57,7 +57,7 @@ class Settings(BaseModel):
 
     # 4. Straight-Through Processing (STP) & Escalation Settings
     STP_DEFAULT_ENABLED: bool = Field(
-        default_factory=lambda: os.getenv("STP_DEFAULT_ENABLED", "false").lower() in ("true", "1", "yes")
+        default_factory=lambda: os.getenv("STP_DEFAULT_ENABLED", "true").lower() in ("true", "1", "yes")
     )
     STP_MIN_CONFIDENCE_THRESHOLD: float = Field(
         default_factory=lambda: float(os.getenv("STP_MIN_CONFIDENCE_THRESHOLD", "0.85"))

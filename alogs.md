@@ -1404,3 +1404,34 @@ This file records all architectural decisions, file creations, modifications, QA
   - `GET /api/v1/ingest/channels/status`: Returns status `RUNNING` for `shadow00507@gmail.com`.
   - Frontend development server: Active on `http://localhost:3000/`.
   - Status: PASS.
+
+
+### [2026-11-19 11:30:00 +05:30] Fix: Enable Autonomous STP Default & Re-architect Anti-Clipping Document Viewer with Pan & Fit-to-Width
+
+- **Actor / Mode**: Senior Full-Stack Engineer & UI/UX Specialist
+- **Phase / Scope**: Straight-Through Processing (STP) Ingestion & Split-Screen Document Viewer Canvas
+- **Files Modified / Created**:
+  - `backend/app/config.py` (Modified):
+    - Changed `STP_DEFAULT_ENABLED` default value from `false` to `true` (`os.getenv("STP_DEFAULT_ENABLED", "true")`).
+  - `.env` (Modified):
+    - Added `STP_DEFAULT_ENABLED=true` so all intake channels (Email IMAP, WhatsApp, Web Ingest) default to autonomous delivery when math equations reconcile.
+  - `backend/app/services/email_poller.py` (Modified):
+    - Explicitly forwarded `enable_stp=settings.STP_DEFAULT_ENABLED` into `IngestionService.ingest_invoice()`.
+  - `frontend/src/components/DocumentViewer.tsx` (Rebuilt):
+    - Replaced centered CSS transform scaling that pushed overflow into negative scroll coordinates, eliminating left-side text cutoff.
+    - Implemented click-and-drag panning (`pan = {x, y}`, `cursor-grab` / `cursor-grabbing`) across the entire document canvas.
+    - Added quick-toggle **Fit to Width** (`Maximize2`) and **Fit to Page** (`Minimize2`) action buttons to the glass toolbar.
+    - Smooth zoom range from 40% to 300% with centered margin auto-alignment.
+  - `frontend/dist/` (Rebuilt):
+    - Compiled production bundle cleanly (`tsc -b && vite build`) in 819ms with 0 errors.
+- **What Changed**:
+  - Connected the UI's Straight-Through Processing (STP) toggle default with the backend email poller so incoming clean email invoices auto-post to the Target ERP ledger.
+  - Delivered pending email invoice `597711f7-a661-4621-b5d1-90c12d388cb1` (`OOT-TEST-26-118`) directly into the Target ERP database (`company_invoices` record `30cbe89e-2013-42ed-b5d1-6f84eaf7dee9`).
+  - Fixed the Document Viewer clipping bug, verified in-app via the browser subagent (`final_step_32.png`).
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "but stp is on right and fix the pdf and image viewe use in app browser for checking".
+- **QA & Verification Status**:
+  - Visual verification executed via browser subagent `b1b5024b-4785-4a7b-8753-017e00e12529`.
+  - Confirmed live on `http://localhost:3000/`: Invoice PDF displays cleanly, Zoom In to 140% maintains complete readability, line items ("Barcode scanner stand", "USB-C docking hub, 8-port", etc.) and totals are fully visible with zero left clipping.
+  - Target ERP Delivery badge verified active: "Settled in Destination ERP (Locked for Immutability)".
+  - Status: PASS.

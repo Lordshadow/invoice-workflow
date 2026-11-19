@@ -134,6 +134,7 @@ class EmailPollerService:
                                     source="email",
                                     db=db,
                                     target_db=target_db,
+                                    enable_stp=settings.STP_DEFAULT_ENABLED,
                                     source_metadata={
                                         "from_email": sender,
                                         "subject": subject,
