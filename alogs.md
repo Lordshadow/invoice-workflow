@@ -1589,3 +1589,22 @@ This file records all architectural decisions, file creations, modifications, QA
   - Frontend production build: Tested and compiled cleanly in 2.07s.
   - Working server integrity: Live backend (Uvicorn port 8000) and frontend (Vite port 3000) remain active and undisturbed.
   - Status: PASS.
+
+
+### [2026-11-19 14:11:30 +05:30] Cloud Deployment Preparation: Packaging Artifacts & Git Ignore Configuration
+
+- **Actor / Mode**: Senior Cloud Infrastructure Engineer
+- **Phase / Scope**: Cloud Run Deployment Execution (GCP Console & Cloud Shell)
+- **Files Modified / Created**:
+  - `ledgerflow-deploy.zip` (Created): Clean 1.28 MB deployment archive containing `backend/`, `frontend/`, `docker/`, and `samples/` (excluding local `.venv`, `node_modules`, and temporary cache files).
+  - `.gitignore` (Modified): Added `*.zip` to prevent binary archive pollution in source control.
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Packaged the complete application source code required for multi-stage Docker builds on Google Cloud Build.
+  - Updated repository `.gitignore` and committed locally.
+- **Why (Rationale & Purpose)**:
+  - Enables instant 1-click upload to Google Cloud Shell in the GCP Console without transferring hundreds of megabytes of local virtual environments or node_modules.
+- **QA & Verification Status**:
+  - Archive verified: 119 files, 1.28 MB total size.
+  - Git status clean.
+  - Status: PASS.
