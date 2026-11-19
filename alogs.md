@@ -1382,3 +1382,25 @@ This file records all architectural decisions, file creations, modifications, QA
   - Live server: Verified serving updated static bundle at `http://127.0.0.1:8000/dashboard/`.
   - Status: PASS.
 
+
+
+### [2026-11-19 11:12:00 +05:30] Activation & Live Verification: Automated Gmail IMAP Ingestion Engine
+
+- **Actor / Mode**: Senior Backend Developer & System Integrator
+- **Phase / Scope**: Automated Email Intake (IMAP Poller & Live Lifecycle)
+- **Files Modified / Created**:
+  - `.env` (User Configured):
+    - Added Gmail IMAP credentials: `ENABLE_EMAIL_POLLER=true`, `IMAP_HOST=imap.gmail.com`, `IMAP_PORT=993`, `IMAP_USER=shadow00507@gmail.com`, `IMAP_PASSWORD=kejyfkjeuaazbzqj`, `IMAP_FOLDER=INBOX`, `IMAP_USE_SSL=true`, `IMAP_POLL_INTERVAL_SECONDS=60`.
+  - `alogs.md` (Modified): Appended changelog entry.
+- **What Changed**:
+  - Validated secure SSL connection to `imap.gmail.com:993` with the Google App Password.
+  - Successfully connected and authenticated as `shadow00507@gmail.com`, verified folder selection and unread email scanning.
+  - Launched backend server on `http://127.0.0.1:8000` with the automated background `EmailPollerService` worker polling every 60 seconds.
+  - Verified endpoint `GET /api/v1/ingest/channels/status` reporting `email_poller` as active and `RUNNING`.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "in enterd releaven info in the .env fiel" — verifies live credentials, starts background ingestion, and enables autonomous attachment parsing.
+- **QA & Verification Status**:
+  - Live IMAP login test: **Authenticated successfully (status OK)**.
+  - `GET /api/v1/ingest/channels/status`: Returns status `RUNNING` for `shadow00507@gmail.com`.
+  - Frontend development server: Active on `http://localhost:3000/`.
+  - Status: PASS.
