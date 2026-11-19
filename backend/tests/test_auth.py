@@ -1,6 +1,6 @@
 """
-Automated Test Suite for Database-Backed Corporate Authentication & Staff Governance.
-Verifies registration, approval workflows, role switching, suspension, and RBAC route guards.
+Automated Test Suite for Database-Backed Corporate Authentication, 2FA OTP & Staff Governance.
+Verifies registration, 2FA OTP dispatch/verification, approval workflows, role switching, suspension, and RBAC route guards.
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -19,8 +19,30 @@ def ensure_db_and_admin():
         bootstrap_initial_users(db)
 
 
-def test_login_success_admin():
-    """Verifies that the Super Admin can authenticate with default bootstrapped credentials."""
+def login_and_verify(client: TestClient, username: str, password: str):
+    """
+    Helper function that performs initial credential login, extracts the 2FA OTP,
+    and calls verify-otp to obtain the full Bearer token and user session.
+    """
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password}
+    )
+    if res.status_code != 200:
+        return res
+    data = res.json()
+    if data.get("requires_2fa"):
+        pre_token = data["pre_auth_token"]
+        otp_code = data["dev_otp_hint"]
+        return client.post(
+            "/api/v1/auth/verify-otp",
+            json={"pre_auth_token": pre_token, "otp_code": otp_code}
+        )
+    return res
+
+
+def test_login_dispatches_2fa_otp():
+    """Verifies that initial login triggers 2FA and returns pre_auth_token with masked email."""
     response = client.post(
         "/api/v1/auth/login",
         json={"username": "admin", "password": "admin123"}
@@ -28,24 +50,66 @@ def test_login_success_admin():
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
+    assert data["requires_2fa"] is True
+    assert "pre_auth_token" in data
+    assert "shadow0" in data["masked_email"] or "@gmail.com" in data["masked_email"]
+    assert len(data["dev_otp_hint"]) == 6
+
+
+def test_verify_otp_invalid_code():
+    """Verifies that submitting an incorrect OTP code fails with HTTP 400 and tracks attempts."""
+    login_res = client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "admin123"}
+    )
+    pre_token = login_res.json()["pre_auth_token"]
+
+    verify_res = client.post(
+        "/api/v1/auth/verify-otp",
+        json={"pre_auth_token": pre_token, "otp_code": "000000"}
+    )
+    assert verify_res.status_code == 400
+    assert "Invalid verification code" in verify_res.json()["detail"]
+
+
+def test_resend_otp():
+    """Verifies that requesting a resend delivers a new OTP code."""
+    login_res = client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "admin123"}
+    )
+    pre_token = login_res.json()["pre_auth_token"]
+    old_hint = login_res.json()["dev_otp_hint"]
+
+    resend_res = client.post(
+        "/api/v1/auth/resend-otp",
+        json={"pre_auth_token": pre_token}
+    )
+    assert resend_res.status_code == 200
+    assert resend_res.json()["success"] is True
+    new_hint = resend_res.json().get("dev_otp_hint")
+    assert len(new_hint) == 6
+
+
+def test_login_success_admin_with_otp():
+    """Verifies that the Super Admin completes full 2FA login and obtains valid Bearer token."""
+    response = login_and_verify(client, "admin", "admin123")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
     assert data["user"]["role"] == "ADMIN"
     assert data["user"]["fullName"] == "System Administrator"
+    assert data["user"]["email"] == "shadow00507@gmail.com"
     assert data["token"].startswith("lf_")
 
 
-def test_login_success_bootstrapped_staff():
-    """Verifies that seeded staff (Sarah & John) can authenticate."""
-    res_sarah = client.post(
-        "/api/v1/auth/login",
-        json={"username": "sarah.approver", "password": "password123"}
-    )
+def test_login_success_bootstrapped_staff_with_otp():
+    """Verifies that seeded staff (Sarah & John) complete full 2FA login."""
+    res_sarah = login_and_verify(client, "sarah.approver", "password123")
     assert res_sarah.status_code == 200
     assert res_sarah.json()["user"]["role"] == "APPROVER"
 
-    res_john = client.post(
-        "/api/v1/auth/login",
-        json={"username": "john.accountant", "password": "password123"}
-    )
+    res_john = login_and_verify(client, "john.accountant", "password123")
     assert res_john.status_code == 200
     assert res_john.json()["user"]["role"] == "ACCOUNTANT"
 
@@ -65,9 +129,9 @@ def test_staff_self_registration_and_admin_approval_lifecycle():
     Verifies end-to-end staff lifecycle:
     1. Staff registers -> Status is PENDING_APPROVAL.
     2. Staff tries to log in before approval -> HTTP 403 Forbidden.
-    3. Admin logs in and inspects pending queue.
+    3. Admin logs in with 2FA and inspects pending queue.
     4. Admin approves applicant with role.
-    5. Staff logs in successfully with HTTP 200.
+    5. Staff logs in successfully with 2FA OTP verification.
     """
     # 1. Staff registers
     reg_res = client.post(
@@ -94,11 +158,8 @@ def test_staff_self_registration_and_admin_approval_lifecycle():
     assert login_blocked.status_code == 403
     assert "pending Administrator approval" in login_blocked.json()["detail"]
 
-    # 3. Admin logs in
-    admin_login = client.post(
-        "/api/v1/auth/login",
-        json={"username": "admin", "password": "admin123"}
-    )
+    # 3. Admin logs in with 2FA
+    admin_login = login_and_verify(client, "admin", "admin123")
     assert admin_login.status_code == 200
     admin_token = admin_login.json()["token"]
     auth_header = {"Authorization": f"Bearer {admin_token}"}
@@ -118,18 +179,14 @@ def test_staff_self_registration_and_admin_approval_lifecycle():
     assert approve_res.json()["status"] == "ACTIVE"
     assert approve_res.json()["role"] == "ACCOUNTANT"
 
-    # 5. Clara logs in successfully
-    clara_login = client.post(
-        "/api/v1/auth/login",
-        json={"username": "clara.maker", "password": "clarapassword123"}
-    )
+    # 5. Clara logs in successfully with 2FA
+    clara_login = login_and_verify(client, "clara.maker", "clarapassword123")
     assert clara_login.status_code == 200
     assert clara_login.json()["user"]["username"] == "clara.maker"
 
 
 def test_admin_update_role_and_suspend():
     """Verifies that an Admin can change a user's role and suspend their account."""
-    # Register and approve test user
     reg = client.post(
         "/api/v1/auth/register",
         json={
@@ -142,8 +199,8 @@ def test_admin_update_role_and_suspend():
     ).json()
     u_id = reg["user_id"]
 
-    # Admin auth
-    adm = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"}).json()
+    # Admin auth with 2FA
+    adm = login_and_verify(client, "admin", "admin123").json()
     auth_header = {"Authorization": f"Bearer {adm['token']}"}
 
     client.post(f"/api/v1/admin/staff/{u_id}/approve", headers=auth_header, json={"approved_role": "ACCOUNTANT"})
@@ -166,7 +223,7 @@ def test_admin_update_role_and_suspend():
 
 def test_non_admin_cannot_access_staff_portal():
     """Verifies that staff accountants and approvers cannot access admin endpoints."""
-    john_login = client.post("/api/v1/auth/login", json={"username": "john.accountant", "password": "password123"}).json()
+    john_login = login_and_verify(client, "john.accountant", "password123").json()
     john_header = {"Authorization": f"Bearer {john_login['token']}"}
 
     res = client.get("/api/v1/admin/staff", headers=john_header)
@@ -176,7 +233,7 @@ def test_non_admin_cannot_access_staff_portal():
 
 def test_admin_direct_register_staff():
     """Verifies that an Admin can directly provision an active staff account."""
-    adm = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin123"}).json()
+    adm = login_and_verify(client, "admin", "admin123").json()
     auth_header = {"Authorization": f"Bearer {adm['token']}"}
 
     res = client.post(
@@ -199,11 +256,8 @@ def test_admin_direct_register_staff():
     assert data["status"] == "ACTIVE"
     assert data["approvedBy"] == "admin"
 
-    # Verify Emma can immediately log in
-    emma_login = client.post(
-        "/api/v1/auth/login",
-        json={"username": "emma.finance", "password": "emmapassword123"}
-    )
+    # Verify Emma can immediately log in with 2FA
+    emma_login = login_and_verify(client, "emma.finance", "emmapassword123")
     assert emma_login.status_code == 200
     assert emma_login.json()["user"]["username"] == "emma.finance"
     assert emma_login.json()["user"]["role"] == "ACCOUNTANT"

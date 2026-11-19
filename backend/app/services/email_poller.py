@@ -104,6 +104,11 @@ class EmailPollerService:
                     subject = decode_str(msg.get("Subject", "No Subject"))
                     message_id_header = msg.get("Message-ID", str(email_id.decode("ascii", errors="ignore")))
 
+                    # Ignore internal 2FA OTP codes & security notifications
+                    if "verification code" in subject.lower() or "ledgerflow security" in subject.lower():
+                        client.store(email_id, "+FLAGS", "\\Seen")
+                        continue
+
                     logger.debug(f"Parsing email: Subject='{subject}', From='{sender}'")
 
                     # Walk through multipart components to find invoice attachments

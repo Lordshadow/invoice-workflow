@@ -102,6 +102,21 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("WHATSAPP_AUTO_REPLY", "true").lower() in ("true", "1", "yes")
     )
 
+    # 9. Two-Factor Authentication (2FA) & SMTP Outbound
+    ENABLE_2FA: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_2FA", "true").lower() in ("true", "1", "yes")
+    )
+    SMTP_HOST: str = Field(default_factory=lambda: os.getenv("SMTP_HOST", "smtp.gmail.com").strip())
+    SMTP_PORT: int = Field(default_factory=lambda: int(os.getenv("SMTP_PORT", "587")))
+    SMTP_USER: str = Field(default_factory=lambda: os.getenv("SMTP_USER", "").strip())
+    SMTP_PASSWORD: str = Field(default_factory=lambda: os.getenv("SMTP_PASSWORD", "").strip())
+    SMTP_USE_TLS: bool = Field(
+        default_factory=lambda: os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+    )
+    SMTP_FROM_NAME: str = Field(
+        default_factory=lambda: os.getenv("SMTP_FROM_NAME", "LedgerFlow Security").strip()
+    )
+
 
 settings = Settings()
 

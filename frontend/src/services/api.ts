@@ -270,18 +270,59 @@ export const api = {
     return request<CompanyInvoice[]>(`/target-company/invoices?limit=${limit}&offset=${offset}`);
   },
 
-  // Authenticate Corporate User
-  async login(username: string, password: string): Promise<{ token: string; user: UserSession }> {
-    const res = await request<{ token: string; user: UserSession }>('/auth/login', {
+  // Authenticate Corporate User (dispatches 2FA if enabled)
+  async login(username: string, password: string): Promise<{
+    requires_2fa?: boolean;
+    pre_auth_token?: string;
+    masked_email?: string;
+    expires_in_seconds?: number;
+    dev_otp_hint?: string;
+    message?: string;
+    token?: string;
+    user?: UserSession;
+  }> {
+    const res = await request<{
+      requires_2fa?: boolean;
+      pre_auth_token?: string;
+      masked_email?: string;
+      expires_in_seconds?: number;
+      dev_otp_hint?: string;
+      message?: string;
+      token?: string;
+      user?: UserSession;
+    }>('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    if (res.token) {
+    if (res.token && res.user) {
       localStorage.setItem('lf_token', res.token);
       localStorage.setItem('lf_user', JSON.stringify(res.user));
     }
     return res;
+  },
+
+  // Verify 6-Digit 2FA OTP Code
+  async verifyOtp(preAuthToken: string, otpCode: string): Promise<{ token: string; user: UserSession; message: string }> {
+    const res = await request<{ token: string; user: UserSession; message: string }>('/auth/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pre_auth_token: preAuthToken, otp_code: otpCode }),
+    });
+    if (res.token && res.user) {
+      localStorage.setItem('lf_token', res.token);
+      localStorage.setItem('lf_user', JSON.stringify(res.user));
+    }
+    return res;
+  },
+
+  // Resend Fresh 2FA OTP Code
+  async resendOtp(preAuthToken: string): Promise<{ success: boolean; message: string; expires_in_seconds?: number; dev_otp_hint?: string }> {
+    return request<{ success: boolean; message: string; expires_in_seconds?: number; dev_otp_hint?: string }>('/auth/resend-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pre_auth_token: preAuthToken }),
+    });
   },
 
   // Staff Self-Registration

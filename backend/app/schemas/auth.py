@@ -41,6 +41,25 @@ class LoginResponse(BaseModel):
     message: str = "Authentication successful"
 
 
+class OtpRequiredResponse(BaseModel):
+    success: bool = True
+    requires_2fa: bool = True
+    pre_auth_token: str
+    masked_email: str
+    message: str = "A 6-digit verification code has been dispatched to your corporate email."
+    expires_in_seconds: int = 300
+    dev_otp_hint: Optional[str] = None
+
+
+class VerifyOtpRequest(BaseModel):
+    pre_auth_token: str = Field(..., description="Temporary 2FA token received from initial login")
+    otp_code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$", description="6-digit verification code")
+
+
+class ResendOtpRequest(BaseModel):
+    pre_auth_token: str = Field(..., description="Temporary 2FA token")
+
+
 class RegisterResponse(BaseModel):
     success: bool = True
     user_id: str

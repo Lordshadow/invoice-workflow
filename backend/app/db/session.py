@@ -82,6 +82,18 @@ def init_db():
             if "duplicate_of_id" not in existing_cols:
                 conn.execute(text("ALTER TABLE invoices ADD COLUMN duplicate_of_id VARCHAR(36)"))
 
+    if inspector.has_table("users"):
+        existing_user_cols = {c["name"] for c in inspector.get_columns("users")}
+        with engine.begin() as conn:
+            if "otp_code_hash" not in existing_user_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN otp_code_hash VARCHAR(256)"))
+            if "otp_expires_at" not in existing_user_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN otp_expires_at DATETIME"))
+            if "otp_attempts" not in existing_user_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN otp_attempts INTEGER DEFAULT 0"))
+            if "pre_auth_token" not in existing_user_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN pre_auth_token VARCHAR(128)"))
+
     logger.info("Database schemas initialized successfully.")
 
     # Bootstrap default users if empty

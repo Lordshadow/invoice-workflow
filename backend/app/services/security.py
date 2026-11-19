@@ -139,7 +139,7 @@ def bootstrap_initial_users(db: Session) -> None:
     initial_users = [
         {
             "username": "admin",
-            "email": "admin@enterprise.com",
+            "email": os.getenv("ADMIN_EMAIL", "shadow00507@gmail.com"),
             "full_name": "System Administrator",
             "password": os.getenv("ADMIN_INITIAL_PASSWORD", "admin123"),
             "role": UserRole.ADMIN.value,

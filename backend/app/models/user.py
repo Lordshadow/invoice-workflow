@@ -6,7 +6,7 @@ import enum
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.db.base import Base, utc_now
@@ -42,6 +42,12 @@ class User(Base):
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     approved_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # Two-Factor Authentication (2FA OTP)
+    otp_code_hash: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    otp_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    otp_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    pre_auth_token: Mapped[Optional[str]] = mapped_column(String(128), index=True, nullable=True)
 
     def to_session_dict(self) -> dict:
         """Returns standard session dictionary for authentication payloads."""

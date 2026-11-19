@@ -1461,3 +1461,52 @@ This file records all architectural decisions, file creations, modifications, QA
   - In-app browser verification executed via subagent `b1b5024b-4785-4a7b-8753-017e00e12529`.
   - Verified on `http://localhost:3000/`: Native Chrome PDF toolbar (Draw, Download, Print, Zoom) rendered inside the embedded frame, zero overlap with the Form Editor card below/beside, and clean toggling between `Browser PDF` and `Canvas` modes confirmed via visual screenshot `final_step_137.png`.
   - Status: PASS.
+
+
+### [2026-11-19 12:15:00 +05:30] Feature: Two-Factor Authentication (Email OTP 2FA) for Admins & Staff, and Admin Email Assignment
+
+- **Actor / Mode**: Senior Security Engineer & Full-Stack Developer
+- **Phase / Scope**: Enterprise Authentication, Security Hardening & User Governance
+- **Files Modified / Created**:
+  - `backend/app/models/user.py` (Modified):
+    - Added security columns: `otp_code_hash` (VARCHAR 64), `otp_expires_at` (DATETIME), `otp_attempts` (INTEGER), and `pre_auth_token` (VARCHAR 128).
+  - `backend/app/db/session.py` (Modified):
+    - Added automated schema upgrade logic in `init_db()` to inspect existing SQLite columns and execute dynamic `ALTER TABLE users ADD COLUMN` statements on startup.
+  - `backend/app/config.py` (Modified):
+    - Added settings: `ENABLE_2FA` (default `True`), `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, and `SMTP_FROM_NAME`.
+  - `backend/app/services/email_sender.py` (Created):
+    - Implemented secure outbound SMTP mailer using Python's native `smtplib` and `email.message.EmailMessage` with STARTTLS.
+    - Designed branded HTML and plaintext email templates with security warnings, expiry notices, and IP/session context.
+    - Added `mask_email()` helper to prevent exposing full email addresses on client-facing responses.
+  - `backend/app/services/email_poller.py` (Modified):
+    - Added subject and sender filter to automatically mark 2FA OTP notification emails as read and prevent them from being ingested as invoice documents.
+  - `backend/app/services/security.py` (Modified):
+    - Updated bootstrap default admin email to `shadow00507@gmail.com`.
+  - `backend/app/schemas/auth.py` (Modified):
+    - Defined `OtpRequiredResponse`, `VerifyOtpRequest`, and `ResendOtpRequest` Pydantic models.
+  - `backend/app/routers/auth.py` (Modified):
+    - Updated `POST /api/v1/auth/login` to authenticate credentials, generate a cryptographically secure 6-digit OTP and pre-auth token, dispatch the email asynchronously via SMTP, and return `OtpRequiredResponse`.
+    - Added `POST /api/v1/auth/verify-otp`: Validates 6-digit OTP code against SHA-256 hash using constant-time `hmac.compare_digest()`, enforces 5-minute expiration and 5-attempt rate limit lockout, and issues full Bearer JWT session token.
+    - Added `POST /api/v1/auth/resend-otp`: Invalidates previous code, resets attempts, generates a fresh OTP, and resends it via SMTP.
+  - `frontend/src/services/api.ts` (Modified):
+    - Updated `api.login` signature to handle `requires_2fa` response.
+    - Added `api.verifyOtp(preAuthToken, otpCode)` and `api.resendOtp(preAuthToken)`.
+  - `frontend/src/components/LoginPage.tsx` (Modified):
+    - Implemented multi-step authentication flow: Username/Password $\rightarrow$ 2FA Verification View.
+    - Added 6-digit numeric input with monospace letter-spacing, live countdown timer (5:00 minutes), "Resend Code" action with cooldown, and "Back to Sign In" reset button.
+  - `backend/tests/test_auth.py` (Modified):
+    - Expanded test suite with 10 comprehensive unit/integration tests covering OTP dispatch, verification, invalid code attempts, resend mechanics, and full admin/staff login flows.
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Re-assigned corporate super administrator identity (`admin`) to email `shadow00507@gmail.com` with `ADMIN` role in persistent database.
+  - Enforced Email OTP Two-Factor Authentication across all administrative and staff user accounts.
+  - Integrated outbound SMTP with Google App Password credentials (`smtp.gmail.com:587`), sending live verification emails with 6-digit passcodes.
+  - Verified end-to-end authentication in the live frontend application via the browser subagent.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "ok add otp 2fa for admins and staffs, make this email as admin shadow00507@gmail.com".
+- **QA & Verification Status**:
+  - Automated test suite executed (`backend/tests/test_auth.py`): 10 tests executed, **10 PASSED, 0 FAILED (100% pass rate)**.
+  - Live SMTP verification: Successfully dispatched live test email to `shadow00507@gmail.com` via `smtp.gmail.com:587`.
+  - Frontend bundle build: Compiled cleanly with `tsc -b && vite build` in 1.39s (0 TypeScript errors).
+  - In-app browser verification: Screenshot confirmed 2FA "Security Verification" screen displaying masked email `s*********7@gmail.com`, 6-digit input, and countdown timer.
+  - Status: PASS.
