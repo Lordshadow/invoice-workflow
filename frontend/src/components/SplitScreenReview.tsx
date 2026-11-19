@@ -221,9 +221,9 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
       </div>
 
       {/* Responsive Split-Screen Grid: Left Document Viewer, Right Line-Item Editor */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-160px)] min-h-[700px] max-h-[960px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-0 lg:h-[calc(100vh-160px)] lg:max-h-[960px]">
         {/* Left Pane: Document Canvas (5 cols on lg, 6 cols on xl) */}
-        <div className="lg:col-span-5 xl:col-span-6 h-full flex flex-col min-h-0">
+        <div className="lg:col-span-5 xl:col-span-6 h-[550px] lg:h-full flex flex-col min-h-0">
           <DocumentViewer
             invoiceId={invoice.id}
             fileName={invoice.file_name}
@@ -231,7 +231,7 @@ export const SplitScreenReview: React.FC<SplitScreenReviewProps> = ({
         </div>
 
         {/* Right Pane: Editable Form & Arithmetic Reconciliation (7 cols on lg, 6 cols on xl) */}
-        <div className="lg:col-span-7 xl:col-span-6 h-full flex flex-col min-h-0">
+        <div className="lg:col-span-7 xl:col-span-6 h-auto lg:h-full flex flex-col min-h-0">
           <InvoiceEditor
             invoice={invoice}
             activeUser={activeUser}

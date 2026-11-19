@@ -1435,3 +1435,29 @@ This file records all architectural decisions, file creations, modifications, QA
   - Confirmed live on `http://localhost:3000/`: Invoice PDF displays cleanly, Zoom In to 140% maintains complete readability, line items ("Barcode scanner stand", "USB-C docking hub, 8-port", etc.) and totals are fully visible with zero left clipping.
   - Target ERP Delivery badge verified active: "Settled in Destination ERP (Locked for Immutability)".
   - Status: PASS.
+
+
+### [2026-11-19 11:55:00 +05:30] Feature: Native Browser PDF Engine Integration & Dual Viewport Architecture
+
+- **Actor / Mode**: Senior Frontend Engineer & UI Specialist
+- **Phase / Scope**: Split-Screen Review Workspace & Document Viewer Engine
+- **Files Modified / Created**:
+  - `frontend/src/components/DocumentViewer.tsx` (Modified):
+    - Added native browser PDF viewer embedding (`<iframe src="/api/v1/invoices/<id>/file#toolbar=1&navpanes=1&scrollbar=1&view=FitH" />`) leveraging Chrome/Edge/Firefox built-in PDFium rendering.
+    - Integrated dual-mode toggle in the top glass toolbar: **`Browser PDF`** (default for all PDF/DOCX invoices) and **`Canvas`** (interactive raster view with pan/zoom).
+    - Added direct action links: *Download Original Document File* and *Open in Full-Screen Browser Tab*.
+    - Maintained custom canvas for camera images (JPG, PNG, WEBP) with zoom and pan controls.
+  - `frontend/src/components/SplitScreenReview.tsx` (Modified):
+    - Adjusted split-screen grid layout responsiveness: `min-h-0 lg:h-[calc(100vh-160px)]` and `h-[550px] lg:h-full` to eliminate vertical clipping and prevent overlap on narrower desktop or tablet screens.
+  - `frontend/dist/` (Rebuilt):
+    - Recompiled production bundle with `tsc -b && vite build` in 1.40s with 0 errors.
+  - `alogs.md` (Modified): Appended changelog entry.
+- **What Changed**:
+  - Implemented the native browser PDF viewer as requested by user ("can't you jsut set browsers pdf viewer").
+  - Provided instant switching between native browser PDF rendering and custom canvas.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "can't you jsut set browsers pdf viewer".
+- **QA & Verification Status**:
+  - In-app browser verification executed via subagent `b1b5024b-4785-4a7b-8753-017e00e12529`.
+  - Verified on `http://localhost:3000/`: Native Chrome PDF toolbar (Draw, Download, Print, Zoom) rendered inside the embedded frame, zero overlap with the Form Editor card below/beside, and clean toggling between `Browser PDF` and `Canvas` modes confirmed via visual screenshot `final_step_137.png`.
+  - Status: PASS.
