@@ -102,6 +102,9 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("WHATSAPP_AUTO_REPLY", "true").lower() in ("true", "1", "yes")
     )
 
+    # Testing Mode (Exposes dev_otp_hint strictly for automated test runners)
+    IS_TESTING: bool = False
+
     # 9. Two-Factor Authentication (2FA) & SMTP Outbound
     ENABLE_2FA: bool = Field(
         default_factory=lambda: os.getenv("ENABLE_2FA", "true").lower() in ("true", "1", "yes")

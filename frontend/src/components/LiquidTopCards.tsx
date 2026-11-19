@@ -62,12 +62,12 @@ export const LiquidTopCards: React.FC<LiquidTopCardsProps> = ({ stats, onFilterC
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 mb-4">
       {/* CARD 1: Total Invoices Logged */}
       <div 
         onClick={() => onFilterClick && onFilterClick('ALL')}
         title="View All Invoices in Registry"
-        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px] hover:border-indigo-300/60 transition-all"
+        className="md:col-span-1 lg:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px] hover:border-indigo-300/60 transition-all"
       >
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -115,7 +115,7 @@ export const LiquidTopCards: React.FC<LiquidTopCardsProps> = ({ stats, onFilterC
       <div 
         onClick={() => onFilterClick && onFilterClick('ALL')}
         title="Ingestion Throughput Monitor"
-        className="md:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px] hover:border-cyan-300/60 transition-all"
+        className="md:col-span-1 lg:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px] hover:border-cyan-300/60 transition-all"
       >
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
@@ -163,24 +163,24 @@ export const LiquidTopCards: React.FC<LiquidTopCardsProps> = ({ stats, onFilterC
       <div 
         onClick={() => onFilterClick && onFilterClick('ESCALATED')}
         title="Open Escalated Invoices Requiring Human Review"
-        className="md:col-span-4 liquid-card-dark p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px] hover:border-amber-400/50 transition-all"
+        className="md:col-span-2 lg:col-span-4 liquid-card-frosted p-5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[140px] hover:border-amber-400/50 transition-all"
       >
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
             <span>Human Review Rate</span>
           </span>
-          <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
+          <span className="text-[10px] font-bold text-amber-800 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
             {escalated} Actionable
           </span>
         </div>
 
         <div className="flex items-end justify-between mt-2">
           <div>
-            <div className="text-3xl font-extrabold tracking-tight text-white">
+            <div className="text-3xl font-extrabold tracking-tight text-slate-800">
               {escalatedRate}%
             </div>
-            <div className="text-[10px] text-slate-300 mt-0.5">
+            <div className="text-[10px] text-slate-500 mt-0.5">
               {escalated} in Exception Queue
             </div>
           </div>

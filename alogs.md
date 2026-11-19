@@ -1510,3 +1510,42 @@ This file records all architectural decisions, file creations, modifications, QA
   - Frontend bundle build: Compiled cleanly with `tsc -b && vite build` in 1.39s (0 TypeScript errors).
   - In-app browser verification: Screenshot confirmed 2FA "Security Verification" screen displaying masked email `s*********7@gmail.com`, 6-digit input, and countdown timer.
   - Status: PASS.
+
+
+### [2026-11-19 12:30:00 +05:30] Fix: UI Polish & Removal of Unwanted Auth UI Elements, Placeholder Scrubbing, Navbar & Top Card Responsiveness
+
+- **Actor / Mode**: Senior Frontend Engineer & UI/UX Specialist
+- **Phase / Scope**: User Experience Polish, UI Redundancy Elimination & Navbar Responsiveness
+- **Files Modified / Created**:
+  - `frontend/src/components/LoginPage.tsx` (Modified):
+    - Removed specific email and username placeholder (`e.g. admin or shadow00507@gmail.com`) and replaced with clean generic placeholder: `Enter corporate username or email`.
+    - Removed explanatory subtitle under "Security Verification" header on the 2FA screen.
+    - Completely removed the "Dev Preview OTP" badge from the 2FA screen and component state.
+    - Removed the bottom helper text ("Protected by Email OTP Two-Factor Authentication.") from the sign-in form.
+    - Removed the bottom footer security badge ("NIST PBKDF2-HMAC-SHA256 Encrypted · 2FA OTP · Dual-Control Governance") from both the sign-in and 2FA screens.
+  - `backend/app/routers/auth.py` (Modified):
+    - Updated `dev_otp_hint` so that it is strictly `None` during standard execution and only returned when `IS_TESTING=True`.
+  - `backend/app/config.py` (Modified):
+    - Added `IS_TESTING: bool = False` to `Settings` Pydantic model for safe test runner execution.
+  - `backend/tests/test_auth.py` (Modified):
+    - Configured test runner with `settings.IS_TESTING = True` so automated suites can verify OTP lifecycle.
+  - `frontend/src/components/Navbar.tsx` (Modified):
+    - Refactored navigation bar responsiveness: switched full tabs from `md` to `lg`/`xl` with compact text labels on `lg` and drawer menu below `lg`.
+    - Added `shrink-0` to the user persona capsule and Ingest Document button to prevent horizontal cutoff and overflow artifacts.
+  - `frontend/src/components/LiquidTopCards.tsx` (Modified):
+    - Refactored top cards grid to `grid-cols-1 md:grid-cols-2 lg:grid-cols-12` to prevent card squeezing on mid-sized viewports.
+    - Harmonized Card 3 (Human Review Rate) to match `liquid-card-frosted` style for visual consistency.
+  - `frontend/src/App.tsx` (Modified):
+    - Aligned `<main>` max-width (`max-w-[1720px]`) with `<Navbar>` to guarantee uniform margin alignment across all viewports.
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Cleaned all cluttered text, redundant security badges, and dev hints from the login and 2FA UI based on user feedback.
+  - Resolved horizontal viewport clipping on the top navigation bar and top dashboard metric cards.
+  - Verified auth services functionality via automated pytest suite (10/10 passed) and live browser subagent inspection.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "fix the ui bug, remove thses unwanted stuffs and why the user name ans email it there remove it, remove the thing on the tpo which is circled and also the dev preview for otp and also the text in the bottom and also check if the auth services are workring properly".
+- **QA & Verification Status**:
+  - In-app browser inspection: Screenshots verified clean `LoginPage` and clean `2FA Security Verification` screen without dev preview, unwanted subtitles, or footer badges.
+  - Frontend production build: Compiled cleanly via `tsc -b && vite build` in 2.07s (0 TypeScript errors).
+  - Backend auth test suite: 10 tests executed, **10 PASSED, 0 FAILED (100% pass rate)**.
+  - Status: PASS.

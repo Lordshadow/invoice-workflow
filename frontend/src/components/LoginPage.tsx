@@ -5,7 +5,6 @@ import {
   User, 
   ArrowRight, 
   ArrowLeft,
-  ShieldCheck, 
   Eye, 
   EyeOff, 
   AlertCircle,
@@ -36,7 +35,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [preAuthToken, setPreAuthToken] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(300);
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState<string | null>(null);
@@ -68,7 +66,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         setPreAuthToken(res.pre_auth_token);
         setMaskedEmail(res.masked_email || 'your registered corporate email');
         setTimeLeft(res.expires_in_seconds || 300);
-        setDevOtpHint(res.dev_otp_hint || null);
         setOtpCode('');
       } else if (res.user) {
         onLogin(res.user);
@@ -118,9 +115,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       const res = await api.resendOtp(preAuthToken);
       setResendSuccess(res.message || 'A fresh verification code has been dispatched.');
       setTimeLeft(res.expires_in_seconds || 300);
-      if (res.dev_otp_hint) {
-        setDevOtpHint(res.dev_otp_hint);
-      }
       setTimeout(() => setResendSuccess(null), 5000);
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -138,7 +132,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setPreAuthToken('');
     setOtpCode('');
     setError(null);
-    setDevOtpHint(null);
   };
 
   return (
@@ -150,18 +143,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         {/* Floating Liquid Glass Auth Card */}
         <div className="liquid-card-frosted p-7 sm:p-10 shadow-2xl border-white/80 backdrop-blur-3xl transition-all duration-300">
           {/* Brand Header */}
-          <div className="flex flex-col items-center text-center pb-6 border-b border-white/40">
+          <div className="flex flex-col items-center text-center pb-5 border-b border-white/40">
             <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center shadow-lg text-white border border-white/70 mb-3">
               {requires2Fa ? <KeyRound className="w-8 h-8 animate-pulse" /> : <Cpu className="w-8 h-8" />}
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
               {requires2Fa ? 'Security Verification' : 'LedgerFlow Enterprise'}
             </h1>
-            <p className="text-xs text-slate-600 font-medium mt-1 max-w-xs">
-              {requires2Fa
-                ? 'Two-Factor Authentication (2FA) is enforced for authorized administrative and staff access.'
-                : 'Autonomous Invoice Ingestion, ERP Delivery & Dual-Control Governance Portal'}
-            </p>
+            {!requires2Fa && (
+              <p className="text-xs text-slate-600 font-medium mt-1 max-w-xs">
+                Autonomous Invoice Ingestion, ERP Delivery & Dual-Control Governance Portal
+              </p>
+            )}
           </div>
 
           {/* Error Banner */}
@@ -193,15 +186,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   </p>
                 </div>
               </div>
-
-              {devOtpHint && (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-900 text-[11px] flex items-center justify-between font-mono">
-                  <span>Dev Preview OTP:</span>
-                  <span className="font-black text-xs tracking-widest bg-amber-200/80 px-2 py-0.5 rounded">
-                    {devOtpHint}
-                  </span>
-                </div>
-              )}
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -282,7 +266,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="e.g. admin or shadow00507@gmail.com"
+                    placeholder="Enter corporate username or email"
                     required
                     autoFocus
                     className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl liquid-input placeholder-slate-400 font-medium"
@@ -331,18 +315,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   )}
                 </button>
               </div>
-
-              <div className="text-center pt-2 text-[11px] text-slate-500 font-medium">
-                Protected by Email OTP Two-Factor Authentication.
-              </div>
             </form>
           )}
-
-          {/* Footer Security Badge */}
-          <div className="mt-8 pt-4 border-t border-white/40 flex items-center justify-center space-x-2 text-[10px] font-bold text-slate-500 text-center">
-            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <span>NIST PBKDF2-HMAC-SHA256 Encrypted · 2FA OTP · Dual-Control Governance</span>
-          </div>
         </div>
       </div>
     </div>

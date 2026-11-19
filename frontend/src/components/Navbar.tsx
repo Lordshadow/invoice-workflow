@@ -72,32 +72,34 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Center: Navigation Pill Switcher */}
-        <nav className="hidden md:flex items-center p-1 rounded-full bg-white/40 border border-white/70 space-x-1 shadow-sm">
+        <nav className="hidden lg:flex items-center p-1 rounded-full bg-white/40 border border-white/70 space-x-1 shadow-sm shrink-0">
           <button
             onClick={() => onTabChange('queue')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+            className={`px-3 xl:px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
               currentTab === 'queue'
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'text-slate-700 hover:text-indigo-900 hover:bg-white/50'
             }`}
           >
             <span className="flex items-center space-x-1.5">
-              <FileCheck2 className="w-3.5 h-3.5" />
-              <span>Invoice Registry</span>
+              <FileCheck2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xl:inline">Invoice Registry</span>
+              <span className="inline xl:hidden">Registry</span>
             </span>
           </button>
 
           <button
             onClick={() => onTabChange('escalated')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+            className={`px-3 xl:px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
               currentTab === 'escalated'
                 ? 'bg-amber-500 text-white shadow-md'
                 : 'text-slate-700 hover:text-amber-800 hover:bg-white/50'
             }`}
           >
             <span className="flex items-center space-x-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Human Review Queue</span>
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xl:inline">Human Review Queue</span>
+              <span className="inline xl:hidden">Review</span>
               {escalatedCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white text-amber-700 font-extrabold ml-1">
                   {escalatedCount}
@@ -108,43 +110,45 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <button
             onClick={() => onTabChange('target_erp')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+            className={`px-3 xl:px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
               currentTab === 'target_erp'
                 ? 'bg-blue-600 text-white shadow-md'
                 : 'text-slate-700 hover:text-blue-900 hover:bg-white/50'
             }`}
           >
             <span className="flex items-center space-x-1.5">
-              <Database className="w-3.5 h-3.5" />
-              <span>Target ERP Ledger</span>
+              <Database className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden xl:inline">Target ERP Ledger</span>
+              <span className="inline xl:hidden">Target ERP</span>
             </span>
           </button>
 
           {(activeUser.role === 'ADMIN' || activeUser.role === 'SUPERVISOR') && (
             <button
               onClick={() => onTabChange('admin')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+              className={`px-3 xl:px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
                 currentTab === 'admin'
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'text-slate-700 hover:text-purple-900 hover:bg-white/50'
               }`}
             >
               <span className="flex items-center space-x-1.5">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Staff & Governance</span>
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden xl:inline">Staff & Governance</span>
+                <span className="inline xl:hidden">Staff</span>
               </span>
             </button>
           )}
         </nav>
 
         {/* Right: Authenticated User Persona & Ingest Action */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {/* Authenticated User Capsule */}
-          <div ref={dropdownRef} className="relative">
+          <div ref={dropdownRef} className="relative shrink-0">
             <button
               type="button"
               onClick={() => setIsDropdownOpen((prev) => !prev)}
-              className="liquid-pill px-3 py-1.5 flex items-center space-x-2 text-xs cursor-pointer border border-white/80 hover:bg-white/60 transition-all duration-200 active:scale-95 shadow-xs"
+              className="liquid-pill px-2.5 sm:px-3 py-1.5 flex items-center space-x-1.5 sm:space-x-2 text-xs cursor-pointer border border-white/80 hover:bg-white/60 transition-all duration-200 active:scale-95 shadow-xs"
             >
               <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold shrink-0 ${
                 activeUser.role === 'APPROVER'
@@ -159,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Users className="w-3.5 h-3.5" />
                 )}
               </div>
-              <div className="flex flex-col text-left">
+              <div className="hidden sm:flex flex-col text-left">
                 <span className="text-[11px] font-bold text-slate-800 leading-tight">
                   {activeUser.fullName}
                 </span>
@@ -171,7 +175,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'Administrator'}
                 </span>
               </div>
-              <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Seamless Liquid Glass Profile Card (Zero UI Mismatch!) */}
@@ -255,9 +259,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Ingest Invoice Button (Liquid Gradient) */}
           <button
             onClick={onOpenUpload}
-            className="px-4 py-2 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md transition-all duration-200 active:scale-95 border border-white/40 cursor-pointer"
+            className="px-3 sm:px-4 py-2 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md transition-all duration-200 active:scale-95 border border-white/40 cursor-pointer shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">Ingest Document</span>
           </button>
 
@@ -265,7 +269,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-            className="md:hidden liquid-pill p-2 rounded-xl text-slate-700 hover:text-indigo-900 border border-white/80 cursor-pointer shadow-xs active:scale-95"
+            className="lg:hidden liquid-pill p-2 rounded-xl text-slate-700 hover:text-indigo-900 border border-white/80 cursor-pointer shadow-xs active:scale-95 shrink-0"
             title="Toggle Navigation Menu"
           >
             {isMobileMenuOpen ? <X className="w-4 h-4 text-slate-800" /> : <Menu className="w-4 h-4 text-slate-800" />}
@@ -273,9 +277,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Mobile / Tablet Responsive Drawer Menu (Accessible below 768px) */}
+      {/* Mobile / Tablet Responsive Drawer Menu (Accessible below 1024px) */}
       {isMobileMenuOpen && (
-        <div className="md:hidden max-w-[1720px] mx-auto mt-2 p-3 rounded-2xl liquid-dropdown-glass border border-white/80 shadow-2xl space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="lg:hidden max-w-[1720px] mx-auto mt-2 p-3 rounded-2xl liquid-dropdown-glass border border-white/80 shadow-2xl space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-2 py-0.5">
             Navigation Views
           </div>

@@ -5,8 +5,12 @@ Verifies registration, 2FA OTP dispatch/verification, approval workflows, role s
 import pytest
 from fastapi.testclient import TestClient
 from backend.app.main import app
+from backend.app.config import settings
 from backend.app.db.session import SessionLocal, init_db
 from backend.app.services.security import bootstrap_initial_users
+
+# Enable test mode so dev_otp_hint is returned for automated test verification
+settings.IS_TESTING = True
 
 client = TestClient(app)
 

@@ -232,7 +232,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
             masked_email=masked,
             message=f"A 6-digit verification code has been dispatched to your email ({masked}).",
             expires_in_seconds=300,
-            dev_otp_hint=otp_code if (settings.DEBUG or getattr(settings, "IS_TESTING", False)) else None
+            dev_otp_hint=otp_code if getattr(settings, "IS_TESTING", False) else None
         )
 
     # Fallback when 2FA is explicitly disabled
@@ -346,7 +346,7 @@ def resend_otp(request: ResendOtpRequest, db: Session = Depends(get_db)):
         "success": True,
         "message": f"A new verification code has been dispatched to {masked}.",
         "expires_in_seconds": 300,
-        "dev_otp_hint": otp_code if (settings.DEBUG or getattr(settings, "IS_TESTING", False)) else None
+        "dev_otp_hint": otp_code if getattr(settings, "IS_TESTING", False) else None
     }
 
 
