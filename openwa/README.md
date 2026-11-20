@@ -10,6 +10,16 @@ This standalone microservice provides automated, real-time invoice ingestion dir
 4. **Contextual Auto-Reply**: Sends automated WhatsApp status updates back to the vendor or employee (e.g., straight-through ERP confirmation, or escalation notice with tracking ID).
 5. **Interactive QR Pairing Web View**: Serves a clean, auto-refreshing QR code at `http://localhost:3001/qr` for easy device linking.
 
+## Interactive WhatsApp Bot Commands & Guardrails
+
+1. **/invoice**: Activates an intake session for the sender's phone number. Inbound PDFs and photos are only accepted during an active session.
+2. **Safety Auto-Timeout (5 Minutes)**: If no invoice or message is received within 5 minutes of activation, the intake session closes automatically.
+3. **Success Indication**: After every invoice is uploaded and saved to Google Cloud Storage / Cloud SQL, the bot replies:
+   `"✅ Invoice received"` along with gross value, tracking ID, and cloud storage confirmation.
+4. **Error Handling**: If the document encounters any issue or decryption error, the bot replies:
+   `"⚠️ Resend your invoice"`.
+5. **/stop**: After submitting invoices, the user can send `/stop` at any time to immediately close the intake session.
+
 ---
 
 ## Quickstart

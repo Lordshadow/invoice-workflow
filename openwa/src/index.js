@@ -32,6 +32,94 @@ const SUPPORTED_MIME_TYPES = new Set([
   'image/webp',
 ]);
 
+// -----------------------------------------------------------------------------
+// Interactive Ingestion Sessions & Safety Guardrail (5-Minute Inactivity Timer)
+// -----------------------------------------------------------------------------
+const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes of no use -> auto off
+const activeSessions = new Map(); // senderId -> { timeoutHandle, startedAt, lastActivityAt }
+
+/**
+ * Resets the 5-minute inactivity timer for an active session.
+ */
+function refreshSessionTimeout(client, senderId) {
+  const session = activeSessions.get(senderId);
+  if (!session) return;
+
+  if (session.timeoutHandle) {
+    clearTimeout(session.timeoutHandle);
+  }
+
+  session.lastActivityAt = Date.now();
+  session.timeoutHandle = setTimeout(async () => {
+    activeSessions.delete(senderId);
+    console.log(`[WhatsApp Guardrail] Session for ${senderId} expired due to 5 minutes of inactivity.`);
+    try {
+      await client.sendText(
+        senderId,
+        '⏳ *Invoice Session Expired*\n\nYour 5-minute invoice intake session has automatically closed due to inactivity.\n\nSend */invoice* anytime to activate a new intake session.'
+      );
+    } catch (e) {
+      console.error(`[WhatsApp Guardrail] Failed to notify ${senderId} of timeout:`, e.message);
+    }
+  }, INACTIVITY_TIMEOUT_MS);
+}
+
+/**
+ * Activates an invoice intake session for a sender.
+ */
+async function activateSession(client, senderId, pushName = 'Vendor') {
+  if (activeSessions.has(senderId)) {
+    refreshSessionTimeout(client, senderId);
+    await client.sendText(
+      senderId,
+      'ℹ️ *Invoice Intake Mode is already active!*\n\nPlease send your invoice document (PDF or Photo).\n\n🛑 When finished, send */stop* to close intake mode.'
+    );
+    return;
+  }
+
+  activeSessions.set(senderId, {
+    startedAt: Date.now(),
+    lastActivityAt: Date.now(),
+    timeoutHandle: null,
+  });
+
+  refreshSessionTimeout(client, senderId);
+  console.log(`[WhatsApp Guardrail] Activated 5-minute intake session for ${senderId}`);
+
+  await client.sendText(
+    senderId,
+    `📥 *Invoice Intake Mode Activated!*\n\n` +
+    `Hello ${pushName}, please send or upload your invoice document (PDF or Photo).\n\n` +
+    `⏱️ *Safety Guardrail:* This session will automatically turn off after 5 minutes of no use.\n` +
+    `🛑 *Done uploading?* Send */stop* at any time to stop the bot from taking invoices.`
+  );
+}
+
+/**
+ * Deactivates an active session manually.
+ */
+async function deactivateSession(client, senderId) {
+  const session = activeSessions.get(senderId);
+  if (session) {
+    if (session.timeoutHandle) {
+      clearTimeout(session.timeoutHandle);
+    }
+    activeSessions.delete(senderId);
+    console.log(`[WhatsApp Guardrail] Manually closed session for ${senderId}`);
+    await client.sendText(
+      senderId,
+      '🛑 *Invoice Intake Deactivated*\n\n' +
+      'The bot has stopped receiving invoices from this number.\n\n' +
+      'To submit invoices again in the future, simply send */invoice*.'
+    );
+  } else {
+    await client.sendText(
+      senderId,
+      'ℹ️ No active invoice session. Send */invoice* to activate intake mode.'
+    );
+  }
+}
+
 // 1. QR Code Pairing Page
 app.get('/qr', (req, res) => {
   if (clientStatus === 'CONNECTED') {
@@ -136,59 +224,164 @@ app.get('/status', (req, res) => {
   });
 });
 
-// 3. Media Ingestion & Forwarding Logic
+// 3. Message Routing, Command Processing & Media Ingestion
 async function handleIncomingMessage(client, message) {
   try {
-    // Only process messages with media attachments
-    if (!message.mimetype || !SUPPORTED_MIME_TYPES.has(message.mimetype.toLowerCase())) {
-      return;
-    }
-
-    console.log(`[WhatsApp Intake] Inbound document from ${message.from} (${message.mimetype})`);
-
-    // Decrypt media payload
-    const mediaData = await client.decryptMedia(message);
-    if (!mediaData || mediaData.length === 0) {
-      console.warn(`[WhatsApp Intake] Media decryption returned empty buffer for message ${message.id}`);
-      return;
-    }
-
-    const filename = message.filename || `whatsapp_${message.from}_${Date.now()}.${message.mimetype.split('/')[1] || 'pdf'}`;
+    const senderId = message.from;
     const senderName = message.sender?.pushname || message.sender?.formattedName || 'WhatsApp Contact';
-    const senderPhone = message.from.replace('@c.us', '');
+    const textBody = (message.body || '').trim().toLowerCase();
 
-    // Construct multipart form for LedgerFlow API
-    const form = new FormData();
-    form.append('file', mediaData, {
-      filename,
-      contentType: message.mimetype,
-    });
-    form.append('sender_phone', senderPhone);
-    form.append('sender_name', senderName);
-    form.append('message_id', message.id);
-    form.append('timestamp', String(message.t || Date.now()));
-
-    console.log(`[WhatsApp Intake] Forwarding '${filename}' to LedgerFlow ingestion engine...`);
-
-    const response = await fetch(LEDGERFLOW_API_URL, {
-      method: 'POST',
-      body: form,
-      headers: form.getHeaders(),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[WhatsApp Intake] LedgerFlow ingestion failed (HTTP ${response.status}): ${errText}`);
+    // -------------------------------------------------------------------------
+    // A. Interactive Text Commands (/invoice, /stop, /help)
+    // -------------------------------------------------------------------------
+    if (textBody === '/invoice' || textBody === 'invoice') {
+      await activateSession(client, senderId, senderName);
       return;
     }
 
-    const result = await response.json();
-    console.log(`[WhatsApp Intake] Ingestion successful! Doc ID: ${result.document_id}, Invoice ID: ${result.invoice_id}, Status: ${result.status}`);
+    if (textBody === '/stop' || textBody === 'stop') {
+      await deactivateSession(client, senderId);
+      return;
+    }
 
-    // Send instant WhatsApp reply if configured
-    if (ENABLE_AUTO_REPLY && result.auto_reply_text) {
-      await client.sendText(message.from, result.auto_reply_text);
-      console.log(`[WhatsApp Intake] Auto-reply delivered to ${message.from}`);
+    if (textBody === '/help' || textBody === 'help' || textBody === 'hi' || textBody === 'hello') {
+      if (activeSessions.has(senderId)) {
+        refreshSessionTimeout(client, senderId);
+        await client.sendText(
+          senderId,
+          '📥 *Invoice Intake is Currently ACTIVE*\n\n' +
+          '• Send a PDF or photo of your invoice to submit.\n' +
+          '• Send */stop* when finished to close intake mode.\n' +
+          '• Session will auto-close after 5 minutes of inactivity.'
+        );
+      } else {
+        await client.sendText(
+          senderId,
+          '👋 *Welcome to LedgerFlow Accounts Payable Assistant*\n\n' +
+          'To submit an invoice for automated processing:\n' +
+          '1️⃣ Send */invoice* to activate intake mode.\n' +
+          '2️⃣ Upload your invoice PDF or photo.\n' +
+          '3️⃣ Send */stop* when finished to stop the bot.\n\n' +
+          '⏱️ *Safety Guardrail:* Intake sessions turn off automatically after 5 minutes of no use.'
+        );
+      }
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // B. Inbound Media Attachments (Invoices / Receipts / PDFs)
+    // -------------------------------------------------------------------------
+    const isMedia = message.mimetype && SUPPORTED_MIME_TYPES.has(message.mimetype.toLowerCase());
+
+    if (isMedia) {
+      // Guardrail Check: Is intake mode active for this number?
+      if (!activeSessions.has(senderId)) {
+        console.log(`[WhatsApp Intake] Ignored media from ${senderId} (Intake mode is OFF)`);
+        await client.sendText(
+          senderId,
+          '🔒 *Invoice Intake is Currently OFF*\n\n' +
+          'To submit an invoice, please activate the intake service first by sending:\n' +
+          '👉 */invoice*\n\n' +
+          '_(Sessions automatically close after 5 minutes of inactivity)_'
+        );
+        return;
+      }
+
+      // Reset the 5-minute inactivity timer
+      refreshSessionTimeout(client, senderId);
+
+      console.log(`[WhatsApp Intake] Inbound document from ${senderId} (${message.mimetype})`);
+
+      // Decrypt media payload
+      let mediaData;
+      try {
+        mediaData = await client.decryptMedia(message);
+      } catch (decryptErr) {
+        console.error(`[WhatsApp Intake] Decryption error for ${senderId}:`, decryptErr);
+      }
+
+      if (!mediaData || mediaData.length === 0) {
+        console.warn(`[WhatsApp Intake] Media decryption returned empty buffer for message ${message.id}`);
+        await client.sendText(
+          senderId,
+          '⚠️ *Resend your invoice*\n\n' +
+          'Could not decrypt or read the file attachment. Please try sending your invoice again.'
+        );
+        return;
+      }
+
+      const filename = message.filename || `whatsapp_${senderId.replace('@c.us', '')}_${Date.now()}.${message.mimetype.split('/')[1] || 'pdf'}`;
+      const senderPhone = senderId.replace('@c.us', '');
+
+      // Construct multipart form for LedgerFlow API
+      const form = new FormData();
+      form.append('file', mediaData, {
+        filename,
+        contentType: message.mimetype,
+      });
+      form.append('sender_phone', senderPhone);
+      form.append('sender_name', senderName);
+      form.append('message_id', message.id);
+      form.append('timestamp', String(message.t || Date.now()));
+
+      console.log(`[WhatsApp Intake] Forwarding '${filename}' to LedgerFlow Cloud Run engine...`);
+
+      let response;
+      try {
+        response = await fetch(LEDGERFLOW_API_URL, {
+          method: 'POST',
+          body: form,
+          headers: form.getHeaders(),
+          timeout: 45000, // 45s timeout for OCR + Gemini extraction
+        });
+      } catch (networkErr) {
+        console.error(`[WhatsApp Intake] Network/timeout error connecting to LedgerFlow API:`, networkErr);
+      }
+
+      // Handle Failures & Errors
+      if (!response || !response.ok) {
+        const errText = response ? await response.text() : 'Connection timeout';
+        console.error(`[WhatsApp Intake] Ingestion failed (Status: ${response?.status}): ${errText}`);
+        
+        await client.sendText(
+          senderId,
+          '⚠️ *Resend your invoice*\n\n' +
+          'We encountered a problem while processing and storing your document in the cloud.\n' +
+          'Please verify that the image or PDF is clear and resend your invoice.'
+        );
+        return;
+      }
+
+      // Handle Success
+      const result = await response.json();
+      console.log(`[WhatsApp Intake] Successfully ingested & stored! Doc ID: ${result.document_id}, Invoice ID: ${result.invoice_id}`);
+
+      const grossValue = Number(result.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const trackingId = result.invoice_id || result.document_id || 'REGISTERED';
+
+      await client.sendText(
+        senderId,
+        `✅ *Invoice received*\n\n` +
+        `📄 *File:* ${result.file_name || filename}\n` +
+        `💰 *Gross Value:* ₹${grossValue}\n` +
+        `🆔 *Tracking ID:* ${trackingId}\n` +
+        `☁️ *Storage:* Stored in Google Cloud Storage & Database\n\n` +
+        `👉 Send another invoice, or send */stop* to stop the bot from taking invoices.`
+      );
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // C. Non-Command Text Messages
+    // -------------------------------------------------------------------------
+    if (activeSessions.has(senderId)) {
+      refreshSessionTimeout(client, senderId);
+      await client.sendText(
+        senderId,
+        '📥 *Invoice Intake Mode is Active*\n\n' +
+        'Please send a PDF or photo of your invoice.\n' +
+        'Or send */stop* to stop the bot from taking invoices.'
+      );
     }
   } catch (err) {
     console.error(`[WhatsApp Intake] Exception processing inbound message:`, err);

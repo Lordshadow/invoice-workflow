@@ -1728,3 +1728,26 @@ This file records all architectural decisions, file creations, modifications, QA
   - Direct cryptographic verification: `Shadow07#005` verified as `True`.
   - Automated test suite: 18 tests passed, 0 failed.
   - Status: PASS.
+
+
+### [2026-11-20 21:13:30 +05:30] WhatsApp Interactive Bot Commands, Success/Failure Replies & 5-Minute Inactivity Guardrail
+
+- **Actor / Mode**: Senior Full-Stack & Integration Engineer
+- **Phase / Scope**: Autonomous Inbound Channels (WhatsApp OpenWA Bridge)
+- **Files Modified / Created**:
+  - `openwa/src/index.js` (Modified):
+    - Added interactive `/invoice` command enabling per-phone intake sessions.
+    - Added `/stop` command allowing users to manually close their intake session.
+    - Implemented a 5-minute inactivity auto-timeout safety guardrail (`INACTIVITY_TIMEOUT_MS = 300,000ms`) that automatically deactivates idle sessions.
+    - Implemented explicit success confirmation reply: `✅ Invoice received` with file name, gross amount, tracking ID, and Cloud Storage persistence notice.
+    - Implemented explicit error handling reply: `⚠️ Resend your invoice` on decryption failure, network error, or backend rejection.
+    - Enforced closed-gate media acceptance (media sent without active session is rejected with instructions to send `/invoice`).
+  - `openwa/README.md` (Modified): Documented all interactive commands, safety timeouts, and reply formats.
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Transformed the WhatsApp bridge from a passive listener into a secure, conversational state-machine bot with per-user session timeouts and structured AP responses.
+- **Why (Rationale & Purpose)**:
+  - Fulfills user directive: "1. /invoice command, 2. 'Invoice received' reply, 3. 'Resend your invoice' reply on error, 4. /stop command, 5. 5-minute inactivity guardrail".
+- **QA & Verification Status**:
+  - Node.js syntax check: `node -c openwa/src/index.js` passed with exit code 0.
+  - Status: PASS.
