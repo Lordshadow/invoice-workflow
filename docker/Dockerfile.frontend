@@ -31,11 +31,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy custom reverse proxy & SPA configuration template
 COPY docker/nginx.conf /etc/nginx/templates/default.conf.template
 
-# Configure entrypoint hook to normalize BACKEND_URL whether passed as full URL or domain host
-RUN printf '#!/bin/sh\nif [ -z "$BACKEND_URL" ] && [ -n "$BACKEND_HOST" ]; then\n  case "$BACKEND_HOST" in\n    http://*|https://*) export BACKEND_URL="$BACKEND_HOST" ;;\n    *) export BACKEND_URL="https://$BACKEND_HOST" ;;\n  esac\nfi\nexport BACKEND_URL="${BACKEND_URL:-http://backend:8000}"\n' > /docker-entrypoint.d/15-set-backend-url.sh && \
-    chmod +x /docker-entrypoint.d/15-set-backend-url.sh
-
-ENV BACKEND_URL=http://backend:8000
+# Default backend settings (can be overridden in cloud via env var)
+ENV BACKEND_PROTOCOL=https \
+    BACKEND_HOST=backend:8000
 
 EXPOSE 80
 

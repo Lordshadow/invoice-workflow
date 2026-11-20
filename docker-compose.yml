@@ -142,6 +142,9 @@ services:
       dockerfile: docker/Dockerfile.frontend
     container_name: ledgerflow-frontend
     restart: unless-stopped
+    environment:
+      BACKEND_PROTOCOL: http
+      BACKEND_HOST: backend:8000
     ports:
       - "3000:80"
     depends_on:

@@ -1685,21 +1685,24 @@ This file records all architectural decisions, file creations, modifications, QA
   - Status: PASS.
 
 
-### [2026-11-20 19:28:30 +05:30] Frontend Cloud Run Gateway: Flexible Backend Proxying & SSL SNI Routing
+### [2026-11-20 19:30:45 +05:30] Frontend NGINX Gateway: Dynamic HTTPS Upstream & SNI Configuration
 
-- **Actor / Mode**: Senior Frontend & DevOps Engineer
-- **Phase / Scope**: Cloud Run Frontend Reverse Proxy Integration
+- **Actor / Mode**: Senior Frontend & Cloud DevOps Engineer
+- **Phase / Scope**: Cloud Run Frontend Ingress Gateway Configuration
 - **Files Modified / Created**:
   - `docker/nginx.conf` (Modified):
-    - Configured `proxy_pass ${BACKEND_URL}/api/` with dynamic upstream scheme support.
-    - Added `proxy_ssl_server_name on` and `proxy_ssl_name $proxy_host` for Cloud Run HTTPS reverse proxying.
-  - `docker/Dockerfile.frontend` & `Dockerfile.frontend` (Modified):
-    - Added entrypoint pre-init hook `/docker-entrypoint.d/15-set-backend-url.sh` to accept both `BACKEND_URL` (with `https://`) and bare `BACKEND_HOST` values seamlessly.
+    - Enabled `proxy_ssl_server_name on` for TLS SNI negotiation with Cloud Run.
+    - Configured `Host $proxy_host` to match destination Cloud Run service.
+    - Parameterized `BACKEND_PROTOCOL` (defaults to https).
+  - `Dockerfile.frontend` & `docker/Dockerfile.frontend` (Modified):
+    - Added default environment variables `BACKEND_PROTOCOL=https` and `BACKEND_HOST=backend:8000`.
+  - `docker-compose.yml` (Modified):
+    - Explicitly set `BACKEND_PROTOCOL: http` for local compose container network.
   - `alogs.md` (Modified): Appended activity log entry.
 - **What Changed**:
-  - Made frontend NGINX proxy capable of routing API traffic directly to Cloud Run HTTPS backend endpoints without SSL handshake errors or domain resolution drops.
+  - Enabled the frontend container to proxy API traffic securely over HTTPS to Cloud Run backend microservices.
 - **Why (Rationale & Purpose)**:
-  - Supports zero-config Cloud Run frontend deployment where users simply pass the backend service URL.
+  - Fulfills user deployment requirements for frontend-to-backend communication on Google Cloud Run.
 - **QA & Verification Status**:
-  - Verified NGINX template syntax and entrypoint hook script.
+  - Committed and pushed to GitHub `main`.
   - Status: PASS.
