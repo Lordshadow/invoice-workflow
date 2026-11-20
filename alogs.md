@@ -1683,3 +1683,23 @@ This file records all architectural decisions, file creations, modifications, QA
 - **QA & Verification Status**:
   - Automated tests executed: 8 passed, 0 failed.
   - Status: PASS.
+
+
+### [2026-11-20 19:28:30 +05:30] Frontend Cloud Run Gateway: Flexible Backend Proxying & SSL SNI Routing
+
+- **Actor / Mode**: Senior Frontend & DevOps Engineer
+- **Phase / Scope**: Cloud Run Frontend Reverse Proxy Integration
+- **Files Modified / Created**:
+  - `docker/nginx.conf` (Modified):
+    - Configured `proxy_pass ${BACKEND_URL}/api/` with dynamic upstream scheme support.
+    - Added `proxy_ssl_server_name on` and `proxy_ssl_name $proxy_host` for Cloud Run HTTPS reverse proxying.
+  - `docker/Dockerfile.frontend` & `Dockerfile.frontend` (Modified):
+    - Added entrypoint pre-init hook `/docker-entrypoint.d/15-set-backend-url.sh` to accept both `BACKEND_URL` (with `https://`) and bare `BACKEND_HOST` values seamlessly.
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Made frontend NGINX proxy capable of routing API traffic directly to Cloud Run HTTPS backend endpoints without SSL handshake errors or domain resolution drops.
+- **Why (Rationale & Purpose)**:
+  - Supports zero-config Cloud Run frontend deployment where users simply pass the backend service URL.
+- **QA & Verification Status**:
+  - Verified NGINX template syntax and entrypoint hook script.
+  - Status: PASS.
