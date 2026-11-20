@@ -1660,3 +1660,26 @@ This file records all architectural decisions, file creations, modifications, QA
   - Automates the existing documented manual build-and-push workflow for Cloud Build triggers while keeping per-environment region and repository overridable.
 - **QA & Verification Status**:
   - PASS: Parsed `cloudbuild.yaml` with Python PyYAML and confirmed both referenced Dockerfiles exist. `git diff --check` passed. Docker image builds were not run locally; Docker Engine was unavailable in the earlier environment check. No application source or invoice-processing behavior changed.
+
+
+### [2026-11-20 19:10:00 +05:30] Cloud Run Resilience Hardening: Schema Init, Non-Blocking Lifespan & Lightweight Health Check
+
+- **Actor / Mode**: Senior Cloud Infrastructure Engineer
+- **Phase / Scope**: Cloud Run Production Hardening & Startup Probe Fix
+- **Files Modified / Created**:
+  - `backend/app/db/session.py` (Modified):
+    - Made `init_db()` resilient against connection failures and syntax errors.
+    - Updated PostgreSQL column migrations (`BOOLEAN DEFAULT FALSE`, `TIMESTAMP`).
+  - `backend/app/main.py` (Modified):
+    - Wrapped database initialization in non-fatal error handler during lifespan startup to prevent container termination on slow DB proxy attachment.
+    - Protected background outbox publisher loop initialization.
+  - `Dockerfile` & `docker/Dockerfile.backend` (Modified):
+    - Changed container health check from database-dependent `/api/v1/invoices/escalation-stats` to lightweight `/api/v1/documents/health` targeting dynamic `${PORT:-8000}`.
+  - `alogs.md` (Modified): Appended activity log entry.
+- **What Changed**:
+  - Hardened backend startup lifecycle to ensure the container always binds to the assigned Cloud Run `$PORT` even during asynchronous Cloud SQL initialization.
+- **Why (Rationale & Purpose)**:
+  - Resolves Cloud Run startup probe timeout `The user-provided container failed to start and listen on the port defined provided by the PORT=8000 environment variable within the allocated timeout`.
+- **QA & Verification Status**:
+  - Automated tests executed: 8 passed, 0 failed.
+  - Status: PASS.

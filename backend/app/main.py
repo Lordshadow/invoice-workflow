@@ -37,16 +37,27 @@ logger = logging.getLogger("invoice_processor.main")
 async def lifespan(app: FastAPI):
     """FastAPI Application Lifespan: Initializes schemas & orchestrates background outbox publisher."""
     logger.info("Starting up application lifecycle...")
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        logger.error(f"Database initialization deferred or failed: {e}", exc_info=True)
+
     outbox_task = None
     is_testing = "pytest" in sys.modules or not getattr(settings, "ENABLE_OUTBOX_WORKER", True)
     if not is_testing:
-        from backend.app.services.delivery_worker import DeliveryWorker
-        outbox_task = asyncio.create_task(DeliveryWorker.run_outbox_publisher_loop(interval_seconds=3.0))
-        logger.info("Outbox publisher background worker registered and started.")
+        try:
+            from backend.app.services.delivery_worker import DeliveryWorker
+            outbox_task = asyncio.create_task(DeliveryWorker.run_outbox_publisher_loop(interval_seconds=3.0))
+            logger.info("Outbox publisher background worker registered and started.")
+        except Exception as e:
+            logger.error(f"Could not start outbox publisher worker: {e}", exc_info=True)
+
         if settings.ENABLE_EMAIL_POLLER:
-            email_poller_service.start()
-            logger.info("Email poller background service registered and started.")
+            try:
+                email_poller_service.start()
+                logger.info("Email poller background service registered and started.")
+            except Exception as e:
+                logger.error(f"Could not start email poller: {e}", exc_info=True)
     yield
     if settings.ENABLE_EMAIL_POLLER:
         email_poller_service.stop()

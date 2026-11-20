@@ -45,7 +45,7 @@ EXPOSE 8000
 
 # Container Healthcheck verifying FastAPI availability
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/invoices/escalation-stats || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/api/v1/documents/health || exit 1
 
 # Launch production ASGI server via Uvicorn (supports Cloud Run dynamic $PORT)
 CMD ["sh", "-c", "exec uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
